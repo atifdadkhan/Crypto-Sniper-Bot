@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: at-trendhive-crypto-sniper
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DATA_DIR
+        value: /tmp/trendhive
+      - key: TOP_N
+        value: "20"
+      - key: MIN_QUOTE_VOLUME
+        value: "500000"
+      - key: MIN_SCORE
+        value: "7"
+      - key: SCAN_SECONDS
+        value: "900"
+      - key: RISK_PERCENT
+        value: "1.0"
+      - key: MAX_POSITION_NOTIONAL_USDT
+        value: "500"
+      - key: COOLDOWN_MINUTES
+        value: "180"
+      - key: SCAN_CONCURRENCY
+        value: "3"
+      - key: TELEGRAM_TOKEN
+        sync: false
+      - key: ADMIN_ID
+        sync: false
