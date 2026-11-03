@@ -311,3 +311,41 @@ def test_history_fallback_tiers_reject_invalid_ranges():
         history_fallback_tiers(120, 180)
     with pytest.raises(ValueError):
         history_fallback_tiers(119, 90)
+
+def test_historical_ohlcv_overlaps_page_edges_to_recover_dropped_boundary_candle():
+    from backtesting.download_bitget import fetch_historical_ohlcv
+
+    step = 900_000
+    start = 1760000400000
+    total = 401
+
+    class FakeExchange:
+        rateLimit = 0
+        def __init__(self):
+            self.calls = 0
+        def market(self, symbol):
+            return {"id": "BTCUSDT"}
+        def parse_timeframe(self, timeframe):
+            return 900
+        def publicMixGetV2MixMarketHistoryCandles(self, params):
+            self.calls += 1
+            left, right = int(params["startTime"]), int(params["endTime"])
+            rows = [
+                [str(ts), "100", "102", "99", "101", "10", "1010"]
+                for ts in range(left, right + 1, step)
+                if start <= ts < start + total * step
+            ]
+            # Simulate Bitget omitting the last candle at a full page edge.
+            if len(rows) == 200:
+                rows = rows[:-1]
+            return {"data": rows}
+
+    exchange = FakeExchange()
+    out = fetch_historical_ohlcv(
+        exchange, "BTC/USDT:USDT", "15m", start, start + total * step
+    )
+    timestamps = [int(row[0]) for row in out]
+    assert len(timestamps) == total
+    assert timestamps == list(range(start, start + total * step, step))
+    assert exchange.calls == 3
+
