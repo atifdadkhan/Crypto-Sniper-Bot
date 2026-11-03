@@ -100,6 +100,29 @@ def test_gap_recovery_requests_exact_missing_timestamp_and_merges_it():
     assert len(out) == 3
 
 
+def test_gap_recovery_uses_bitget_history_endpoint_when_ccxt_current_endpoint_misses():
+    start = 1760000400000
+    frame = _frame(n=3, start=start).drop(index=1).reset_index(drop=True)
+    frame = normalise_ohlcv(frame, min_candles=1)
+
+    class FakeExchange:
+        rateLimit = 0
+        def fetch_ohlcv(self, symbol, timeframe, since, limit):
+            return []
+        def market(self, symbol):
+            return {"id": "BTCUSDT"}
+        def request(self, path, api, method, params):
+            assert path == "v2/mix/market/history-candles"
+            assert params["symbol"] == "BTCUSDT"
+            assert params["productType"] == "USDT-FUTURES"
+            assert params["startTime"] == str(start + 900000)
+            return {"data": [[start + 900000, 100, 102, 99, 101, 10, 1010]]}
+
+    out = recover_missing_candles(FakeExchange(), "BTC/USDT:USDT", "15m", frame, 900000)
+    validate_timeframe(out, "15m", "BTC")
+    assert len(out) == 3
+
+
 def test_gap_recovery_never_synthesizes_unavailable_candle():
     start = 1760000400000
     frame = _frame(n=3, start=start).drop(index=1).reset_index(drop=True)
