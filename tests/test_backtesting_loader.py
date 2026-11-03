@@ -82,6 +82,8 @@ def test_gap_recovery_requests_exact_missing_timestamp_and_merges_it():
     start = 1760000400000
     frame = _frame(n=3, start=start)
     frame = frame.drop(index=1).reset_index(drop=True)
+    # Production download path supplies UTC-aware timestamps to the recovery helper.
+    frame = normalise_ohlcv(frame, min_candles=1)
 
     class FakeExchange:
         rateLimit = 0
@@ -101,6 +103,8 @@ def test_gap_recovery_requests_exact_missing_timestamp_and_merges_it():
 def test_gap_recovery_never_synthesizes_unavailable_candle():
     start = 1760000400000
     frame = _frame(n=3, start=start).drop(index=1).reset_index(drop=True)
+    # Keep the fixture consistent with the UTC-aware production downloader.
+    frame = normalise_ohlcv(frame, min_candles=1)
 
     class FakeExchange:
         rateLimit = 0
