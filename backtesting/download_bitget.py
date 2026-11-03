@@ -319,28 +319,55 @@ def main():
                 f"Candidate [{idx}/{len(symbols)}] {symbol}; eligible "
                 f"{len(manifest['downloaded'])}/{args.max_symbols if args.max_symbols else 'ALL'}"
             )
-            result = {"symbol": symbol, "candles": {}}
-            try:
-                # Stage all timeframes and publish only after every timeframe validates.
-                with tempfile.TemporaryDirectory(prefix="bitget_symbol_", dir=out_dir) as tmp_dir:
-                    for tf in TIMEFRAMES:
-                        result["candles"][tf] = download_one(
-                            exchange, symbol, tf, args.days, Path(tmp_dir)
-                        )
-                    folder_name = str(
-                        exchange.market(symbol).get("base") or symbol.split("/")[0]
-                    ).upper() + "USDT"
-                    staged_folder = Path(tmp_dir) / folder_name
-                    destination = out_dir / folder_name
-                    if destination.exists():
-                        shutil.rmtree(destination)
-                    shutil.move(str(staged_folder), str(destination))
+            result = {"symbol": symbol, "candles": {}, "lookback_days": None}
+            tiers = sorted(
+                {args.days, args.min_history_days}
+                | {day for day in (365, 180, 90, 60, 30)
+                   if args.min_history_days <= day <= args.days},
+                reverse=True,
+            )
+            last_error = None
+            accepted = False
+            for lookback_days in tiers:
+                try:
+                    # Stage each tier independently; failed attempts never publish partial data.
+                    with tempfile.TemporaryDirectory(prefix="bitget_symbol_", dir=out_dir) as tmp_dir:
+                        tier_results = {}
+                        for tf in TIMEFRAMES:
+                            tier_results[tf] = download_one(
+                                exchange, symbol, tf, lookback_days, Path(tmp_dir)
+                            )
+                        folder_name = str(
+                            exchange.market(symbol).get("base") or symbol.split("/")[0]
+                        ).upper() + "USDT"
+                        staged_folder = Path(tmp_dir) / folder_name
+                        destination = out_dir / folder_name
+                        if destination.exists():
+                            shutil.rmtree(destination)
+                        shutil.move(str(staged_folder), str(destination))
+                    result["candles"] = tier_results
+                    result["lookback_days"] = lookback_days
+                    accepted = True
+                    if lookback_days < args.days:
+                        print(f"ADAPTIVE HISTORY: {symbol} accepted at {lookback_days}d (requested {args.days}d)")
+                    break
+                except Exception as exc:
+                    last_error = exc
+                    message = str(exc).lower()
+                    recoverable = (
+                        "data insufficient" in message or "timestamp gap" in message
+                        or "stale" in message or "requested coverage" in message
+                    )
+                    if not recoverable or lookback_days == tiers[-1]:
+                        break
+                    print(f"RETRY {symbol}: {lookback_days}d unavailable; trying next history tier")
+            if accepted:
                 manifest["downloaded"].append(result)
                 print(f"ELIGIBLE: {symbol} ({len(manifest['downloaded'])}/{args.max_symbols or 'ALL'})")
-            except Exception as exc:
-                result["error"] = f"{type(exc).__name__}: {exc}"
+            else:
+                result["error"] = f"{type(last_error).__name__}: {last_error}" if last_error else "No eligible history tier"
                 manifest["failed"].append(result)
-                print(f"SKIP INELIGIBLE MARKET: {symbol}: {exc}")
+                print(f"SKIP INELIGIBLE MARKET: {symbol}: {result['error']}")
         manifest["candidate_count"] = len(symbols)
         manifest["candidates_attempted"] = len(manifest["downloaded"]) + len(manifest["failed"])
         manifest["eligible_count"] = len(manifest["downloaded"])
@@ -352,9 +379,21 @@ def main():
         if not manifest["downloaded"]:
             raise RuntimeError("No complete datasets downloaded; inspect DATA INSUFFICIENT reasons in manifest.")
         if args.max_symbols > 0 and len(manifest["downloaded"]) < args.max_symbols:
+            print(
+                f"WARNING: only {len(manifest['downloaded'])}/{args.max_symbols} markets "
+                f"qualified above the {args.min_history_days}-day history and "
+                f"${args.absolute_min_quote_volume:,.0f} USDT turnover floors. "
+                "Proceeding with every validated market; no low-quality data was forced in."
+            )
+        downloaded_bases = {
+            str(exchange.market(item["symbol"]).get("base") or item["symbol"].split("/")[0]).upper()
+            for item in manifest["downloaded"]
+        }
+        if not {"BTC", "ETH"}.issubset(downloaded_bases):
             raise RuntimeError(
-                f"Only {len(manifest['downloaded'])}/{args.max_symbols} eligible markets had "
-                f"the full {args.days}-day history. See download_manifest.json for skipped markets."
+                "BTC and ETH benchmark datasets are mandatory for the current strategy; "
+                f"validated benchmarks: {sorted(downloaded_bases.intersection({'BTC', 'ETH'}))}. "
+                "Inspect download_manifest.json."
             )
     finally:
         close = getattr(exchange, "close", None)
