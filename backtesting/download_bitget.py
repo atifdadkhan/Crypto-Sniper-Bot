@@ -187,6 +187,9 @@ def fetch_historical_ohlcv(exchange, symbol, timeframe, since_ms, until_ms, max_
     market = exchange.market(symbol)
     granularity = {"15m": "15m", "1h": "1H", "4h": "4H", "1d": "1D"}[timeframe]
     step_ms = int(exchange.parse_timeframe(timeframe) * 1000)
+    # Bitget can omit the final candle at a page boundary even when the
+    # request spans exactly 200 slots. Overlap adjacent windows by one candle:
+    # the next response then gets a second chance to return the previous edge.
     max_window_ms = min(200 * step_ms, 90 * 86_400_000)
     cursor = (int(since_ms) // step_ms) * step_ms
     until_ms = int(until_ms)
@@ -228,14 +231,25 @@ def fetch_historical_ohlcv(exchange, symbol, timeframe, since_ms, until_ms, max_
             if cursor <= stamp < window_end:
                 rows.append(row[:6])
         request_count += 1
-        cursor = window_end
-        if cursor < until_ms:
-            time.sleep(max(float(getattr(exchange, "rateLimit", 100)), 50.0) / 1000.0)
+        if window_end >= until_ms:
+            break
+        # Re-request the last timestamp of this window as the first timestamp
+        # of the next one. Deduplication below preserves one canonical candle.
+        cursor = window_end - step_ms
+        if cursor <= int(since_ms) // step_ms * step_ms:
+            raise RuntimeError(f"Historical pagination made no progress for {symbol} {timeframe}")
+        time.sleep(max(float(getattr(exchange, "rateLimit", 100)), 50.0) / 1000.0)
 
     if not rows:
         raise RuntimeError(f"No historical OHLCV data returned for {symbol} {timeframe}")
+    # Overlapping windows intentionally return duplicate edge candles. Keep the
+    # last provider row for each timestamp and return deterministic chronology.
+    unique = {}
+    for row in rows:
+        unique[int(row[0])] = row
+    rows = [unique[stamp] for stamp in sorted(unique)]
     # Keep diagnostics useful without flooding Actions logs.
-    print(f"Bitget history API: {symbol} {timeframe}, {request_count} windows, {len(rows)} raw candles")
+    print(f"Bitget history API: {symbol} {timeframe}, {request_count} windows, {len(rows)} unique candles")
     return rows
 
 
@@ -251,7 +265,9 @@ def download_one(exchange, symbol: str, timeframe: str, days: int, out_dir: Path
     # fetch_historical_ohlcv pages by exact time windows to cover long histories.
     rows = fetch_historical_ohlcv(exchange, symbol, timeframe, since, now_ms)
     frame = pd.DataFrame(rows, columns=["timestamp", "open", "high", "low", "close", "volume"])
-    frame["timestamp"] = pd.to_datetime(frame["timestamp"], unit="ms", utc=True)
+    frame["timestamp"] = pd.to_datetime(
+        pd.to_numeric(frame["timestamp"], errors="coerce"), unit="ms", utc=True
+    )
     frame = frame[
         frame["timestamp"] + pd.to_timedelta(step, unit="ms")
         <= pd.Timestamp(now_ms, unit="ms", tz="UTC")
