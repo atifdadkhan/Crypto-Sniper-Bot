@@ -111,8 +111,7 @@ def test_gap_recovery_uses_bitget_history_endpoint_when_ccxt_current_endpoint_mi
             return []
         def market(self, symbol):
             return {"id": "BTCUSDT"}
-        def request(self, path, api, method, params):
-            assert path == "v2/mix/market/history-candles"
+        def publicMixGetV2MixMarketHistoryCandles(self, params):
             assert params["symbol"] == "BTCUSDT"
             assert params["productType"] == "USDT-FUTURES"
             assert params["startTime"] == str(start + 900000)
