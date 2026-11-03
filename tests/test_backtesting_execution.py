@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 
-from backtesting.backtest import simulate
+from backtesting.backtest import simulate, summarize
 
 
 def _bars(rows):
@@ -54,3 +54,14 @@ def test_round_trip_cost_converted_to_r():
     assert trade["estimated_cost_pct"] == 0.12
     assert trade["estimated_cost_r"] > 0
     assert trade["net_r"] < trade["gross_r"]
+
+
+
+def test_drawdown_includes_initial_equity_baseline():
+    trades = pd.DataFrame({
+        "net_r": [-1.0, 0.5],
+        "tp1_hit": [False, True],
+        "side": ["LONG", "SHORT"],
+    })
+    metrics = summarize(trades)
+    assert metrics["max_drawdown_r"] == -1.0
