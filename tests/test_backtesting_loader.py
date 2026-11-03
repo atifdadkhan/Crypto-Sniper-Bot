@@ -24,7 +24,7 @@ def test_rejects_non_finite_and_invalid_ohlc():
     frame = _frame()
     frame.loc[0, "high"] = np.inf
     frame.loc[1, "low"] = 105.0
-    out = normalise_ohlcv(frame)
+    out = normalise_ohlcv(frame, min_candles=1)
     assert len(out) == 98
 
 
