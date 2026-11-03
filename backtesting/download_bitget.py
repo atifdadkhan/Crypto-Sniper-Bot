@@ -13,6 +13,7 @@ import pandas as pd
 from backtesting.data_loader import normalise_ohlcv, validate_timeframe
 
 TIMEFRAMES = ("15m", "1h", "4h", "1d")
+BITGET_GRANULARITY = {"15m": "15m", "1h": "1H", "4h": "4H", "1d": "1Dutc"}
 
 
 def history_fallback_tiers(requested_days, minimum_days):
@@ -90,7 +91,7 @@ def discover_usdt_swaps(exchange, min_quote_volume=500_000.0, max_symbols=0, abs
 def _fetch_exact_history_candle(exchange, symbol, timeframe, timestamp_ms, step_ms):
     """Use Bitget's dedicated history-candles endpoint as an exact-gap fallback."""
     market = exchange.market(symbol)
-    granularity = {"15m": "15m", "1h": "1H", "4h": "4H", "1d": "1D"}[timeframe]
+    granularity = BITGET_GRANULARITY[timeframe]
     params = {
         "symbol": market["id"],
         "productType": "USDT-FUTURES",
@@ -185,7 +186,7 @@ def fetch_historical_ohlcv(exchange, symbol, timeframe, since_ms, until_ms, max_
     if timeframe not in TIMEFRAMES:
         raise ValueError(f"Unsupported timeframe: {timeframe}")
     market = exchange.market(symbol)
-    granularity = {"15m": "15m", "1h": "1H", "4h": "4H", "1d": "1D"}[timeframe]
+    granularity = BITGET_GRANULARITY[timeframe]
     step_ms = int(exchange.parse_timeframe(timeframe) * 1000)
     # Bitget can omit the final candle at a page boundary even when the
     # request spans exactly 200 slots. Overlap adjacent windows by one candle:

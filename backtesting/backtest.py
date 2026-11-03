@@ -102,7 +102,7 @@ def simulate(sig, bars, entry_i, max_hold=96, fee_slippage_pct=0.12,
     tp1 = entry + (1.5 * risk if sig.side == "LONG" else -1.5 * risk)
     tp2 = entry + (2.5 * risk if sig.side == "LONG" else -2.5 * risk)
     remaining, gross_r, tp1_hit = 1.0, 0.0, False
-    end_i = min(entry_i + max_hold, len(bars) - 1)
+    end_i = min(entry_i + max_hold - 1, len(bars) - 1)
     exit_price, exit_reason, exit_i = float(bars.iloc[end_i].close), "TIME_EXIT", end_i
 
     for j in range(entry_i, end_i + 1):

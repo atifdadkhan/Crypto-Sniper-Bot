@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 from backtesting.download_btc_eth_independent import history_tiers
+from backtesting.download_bitget import BITGET_GRANULARITY
 from backtesting.backtest_btc_eth_timeframes import (
     split_contiguous, benchmark_trend_at, prepare_benchmark,
 )
@@ -49,3 +50,7 @@ def test_benchmark_alignment_uses_completed_candle_time_and_rejects_stale():
 def test_short_benchmark_history_is_not_silently_used():
     frame = _ohlcv(99)
     assert prepare_benchmark(frame, "15m") == []
+
+
+def test_bitget_daily_uses_explicit_utc_daily_candles():
+    assert BITGET_GRANULARITY["1d"] == "1Dutc"
