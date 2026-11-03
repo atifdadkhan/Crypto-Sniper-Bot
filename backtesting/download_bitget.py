@@ -80,7 +80,7 @@ def _fetch_exact_history_candle(exchange, symbol, timeframe, timestamp_ms, step_
         "endTime": str(timestamp_ms + step_ms - 1),
         "limit": "10",
     }
-    response = exchange.request("v2/mix/market/history-candles", "mix", "GET", params)
+    response = exchange.publicMixGetV2MixMarketHistoryCandles(params)
     rows = response.get("data", []) if isinstance(response, dict) else []
     return [row[:6] for row in rows if row and int(row[0]) == int(timestamp_ms) and len(row) >= 6]
 
