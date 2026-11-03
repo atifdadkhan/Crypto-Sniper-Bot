@@ -1,0 +1,3875 @@
+{
+  "exchange": "Bitget",
+  "market_type": "USDT perpetual swaps",
+  "days_requested": 365,
+  "timeframes": [
+    "15m",
+    "1h",
+    "4h",
+    "1d"
+  ],
+  "min_24h_quote_volume_usdt": 500000.0,
+  "max_symbols": 0,
+  "downloaded": [
+    {
+      "symbol": "BTC/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ETH/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "SOL/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ZEC/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "HYPE/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "XRP/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "MSTR/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "INTC/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "NEAR/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "PEPE/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "IDOL/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ENA/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "GOOGL/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "MRVL/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "CRCL/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ARIA/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "QQQ/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "PAXG/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "NVDA/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "SUI/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "DOGE/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "TSLA/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "UNI/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "LYN/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "XAUT/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "TRUMP/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "AAPL/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ADA/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "LINK/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "WLD/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "BNB/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "MSFT/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "PUMP/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "COIN/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "BEAM/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "AAVE/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "AMZN/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "UAI/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 358
+      }
+    },
+    {
+      "symbol": "AVAX/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "PLTR/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "TAO/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ORCL/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ONDO/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ARB/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "APR/USDT:USDT",
+      "candles": {
+        "15m": 8639,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "QNT/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "BCH/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "JCT/USDT:USDT",
+      "candles": {
+        "15m": 8625,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 353
+      }
+    },
+    {
+      "symbol": "SOPH/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "INJ/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ARM/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "HOT/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "TRX/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "XPL/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "META/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "HOOD/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "Q/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "XLM/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ZRO/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "LTC/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "APT/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "FIL/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "FARTCOIN/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "LSK/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "FET/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "DOT/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "INIT/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "RUNE/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "STRK/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "SHIB/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "PENGU/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "XMR/USDT:USDT",
+      "candles": {
+        "15m": 8624,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 353
+      }
+    },
+    {
+      "symbol": "OP/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "BABA/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "POWR/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "RENDER/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "BLESS/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "TIA/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "1000CAT/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "JUP/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ASML/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "G/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "HBAR/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "BR/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ATOM/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "SEI/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "SIREN/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "STX/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "1000BONK/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "OGN/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "HAEDAL/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ICNT/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "GRASS/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "HUMA/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "BEAT/USDT:USDT",
+      "candles": {
+        "15m": 8516,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 352
+      }
+    },
+    {
+      "symbol": "CRV/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ASTER/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "NIL/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "WIF/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "PENDLE/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "VVV/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ICP/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "RED/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "AERO/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "XAN/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "GPS/USDT:USDT",
+      "candles": {
+        "15m": 8639,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "PYTH/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "LDO/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "DOOD/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "PARTI/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ETHFI/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "VIRTUAL/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "XPIN/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ETC/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "USELESS/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "LA/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "JTO/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "MCD/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "FORM/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ERA/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "SOON/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "BGB/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ALGO/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "RIVER/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "MOVR/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "RAY/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "AWE/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "KAS/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "PROM/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "MON/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "COW/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "FLOCK/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "DASH/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 360
+      }
+    },
+    {
+      "symbol": "KITE/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "AR/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "T/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "SAND/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "FLUID/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "GRAM/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "PI/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "GALA/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "WLFI/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ZK/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "PHA/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "POL/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "BIO/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ORDI/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ZEN/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "ONE/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "RDDT/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "TAG/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "COTI/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    },
+    {
+      "symbol": "LLY/USDT:USDT",
+      "candles": {
+        "15m": 8622,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 353
+      }
+    },
+    {
+      "symbol": "AVA/USDT:USDT",
+      "candles": {
+        "15m": 8638,
+        "1h": 2360,
+        "4h": 1508,
+        "1d": 361
+      }
+    }
+  ],
+  "failed": [
+    {
+      "symbol": "SOXL/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SOXL/USDT:USDT 15m"
+    },
+    {
+      "symbol": "KORU/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for KORU/USDT:USDT 15m"
+    },
+    {
+      "symbol": "XAU/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for XAU/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SNDK/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SNDK/USDT:USDT 15m"
+    },
+    {
+      "symbol": "CL/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for CL/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SKHY/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SKHY/USDT:USDT 15m"
+    },
+    {
+      "symbol": "MU/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for MU/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SKHYNIX/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SKHYNIX/USDT:USDT 15m"
+    },
+    {
+      "symbol": "XAG/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for XAG/USDT:USDT 15m"
+    },
+    {
+      "symbol": "BZ/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for BZ/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SOXS/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SOXS/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SPCX/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SPCX/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SNXX/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SNXX/USDT:USDT 15m"
+    },
+    {
+      "symbol": "LITE/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for LITE/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SAMSUNG/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SAMSUNG/USDT:USDT 15m"
+    },
+    {
+      "symbol": "DRAM/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for DRAM/USDT:USDT 15m"
+    },
+    {
+      "symbol": "TQQQ/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for TQQQ/USDT:USDT 15m"
+    },
+    {
+      "symbol": "MINIMAX/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for MINIMAX/USDT:USDT 15m"
+    },
+    {
+      "symbol": "OPENAI/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for OPENAI/USDT:USDT 15m"
+    },
+    {
+      "symbol": "NBIS/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for NBIS/USDT:USDT 15m"
+    },
+    {
+      "symbol": "AKE/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for AKE/USDT:USDT 15m"
+    },
+    {
+      "symbol": "ZHIPU/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for ZHIPU/USDT:USDT 15m"
+    },
+    {
+      "symbol": "CSOPSK2LHKD/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for CSOPSK2LHKD/USDT:USDT 15m"
+    },
+    {
+      "symbol": "INTW/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for INTW/USDT:USDT 15m"
+    },
+    {
+      "symbol": "AMD/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for AMD/USDT:USDT 15m"
+    },
+    {
+      "symbol": "AAOI/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for AAOI/USDT:USDT 15m"
+    },
+    {
+      "symbol": "EVAA/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for EVAA/USDT:USDT 15m"
+    },
+    {
+      "symbol": "BE/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for BE/USDT:USDT 15m"
+    },
+    {
+      "symbol": "EWY/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for EWY/USDT:USDT 15m"
+    },
+    {
+      "symbol": "MSTU/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for MSTU/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SQQQ/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SQQQ/USDT:USDT 15m"
+    },
+    {
+      "symbol": "AXTI/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for AXTI/USDT:USDT 15m"
+    },
+    {
+      "symbol": "ZHONGJI/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for ZHONGJI/USDT:USDT 15m"
+    },
+    {
+      "symbol": "UNITREE/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for UNITREE/USDT:USDT 15m"
+    },
+    {
+      "symbol": "COHR/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for COHR/USDT:USDT 15m"
+    },
+    {
+      "symbol": "CBRS/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for CBRS/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SKUU/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SKUU/USDT:USDT 15m"
+    },
+    {
+      "symbol": "RKLB/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for RKLB/USDT:USDT 15m"
+    },
+    {
+      "symbol": "IREN/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for IREN/USDT:USDT 15m"
+    },
+    {
+      "symbol": "BX/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for BX/USDT:USDT 15m"
+    },
+    {
+      "symbol": "TSM/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for TSM/USDT:USDT 15m"
+    },
+    {
+      "symbol": "CRWV/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for CRWV/USDT:USDT 15m"
+    },
+    {
+      "symbol": "BTW/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for BTW/USDT:USDT 15m"
+    },
+    {
+      "symbol": "WDC/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for WDC/USDT:USDT 15m"
+    },
+    {
+      "symbol": "MUU/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for MUU/USDT:USDT 15m"
+    },
+    {
+      "symbol": "\u725b\u6765/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for \u725b\u6765/USDT:USDT 15m"
+    },
+    {
+      "symbol": "RAM/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for RAM/USDT:USDT 15m"
+    },
+    {
+      "symbol": "NATGAS/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for NATGAS/USDT:USDT 15m"
+    },
+    {
+      "symbol": "XPT/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for XPT/USDT:USDT 15m"
+    },
+    {
+      "symbol": "LASERTEC/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for LASERTEC/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SOXX/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SOXX/USDT:USDT 15m"
+    },
+    {
+      "symbol": "DELL/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for DELL/USDT:USDT 15m"
+    },
+    {
+      "symbol": "AVGO/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for AVGO/USDT:USDT 15m"
+    },
+    {
+      "symbol": "ZHIPUHKD/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for ZHIPUHKD/USDT:USDT 15m"
+    },
+    {
+      "symbol": "UVXY/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for UVXY/USDT:USDT 15m"
+    },
+    {
+      "symbol": "CSOPSS2LHKD/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for CSOPSS2LHKD/USDT:USDT 15m"
+    },
+    {
+      "symbol": "MINIMAXHKD/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for MINIMAXHKD/USDT:USDT 15m"
+    },
+    {
+      "symbol": "KIOXIA/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for KIOXIA/USDT:USDT 15m"
+    },
+    {
+      "symbol": "MVLL/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for MVLL/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SKDD/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SKDD/USDT:USDT 15m"
+    },
+    {
+      "symbol": "PONS/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for PONS/USDT:USDT 15m"
+    },
+    {
+      "symbol": "MAGMA/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for MAGMA/USDT:USDT 15m"
+    },
+    {
+      "symbol": "MRNA/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for MRNA/USDT:USDT 15m"
+    },
+    {
+      "symbol": "HYUNDAI/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for HYUNDAI/USDT:USDT 15m"
+    },
+    {
+      "symbol": "CXMT/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for CXMT/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SPY/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SPY/USDT:USDT 15m"
+    },
+    {
+      "symbol": "GLW/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for GLW/USDT:USDT 15m"
+    },
+    {
+      "symbol": "QCOM/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for QCOM/USDT:USDT 15m"
+    },
+    {
+      "symbol": "BMNR/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for BMNR/USDT:USDT 15m"
+    },
+    {
+      "symbol": "FLNC/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for FLNC/USDT:USDT 15m"
+    },
+    {
+      "symbol": "BIRB/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for BIRB/USDT:USDT 15m"
+    },
+    {
+      "symbol": "JIO/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for JIO/USDT:USDT 15m"
+    },
+    {
+      "symbol": "MEGA/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for MEGA/USDT:USDT 15m"
+    },
+    {
+      "symbol": "ASX/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for ASX/USDT:USDT 15m"
+    },
+    {
+      "symbol": "IRYS/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for IRYS/USDT:USDT 15m"
+    },
+    {
+      "symbol": "ANTHROPIC/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for ANTHROPIC/USDT:USDT 15m"
+    },
+    {
+      "symbol": "LIT/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for LIT/USDT:USDT 15m"
+    },
+    {
+      "symbol": "MARSCOIN/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for MARSCOIN/USDT:USDT 15m"
+    },
+    {
+      "symbol": "CRDO/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for CRDO/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SSPC/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SSPC/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SAMSUNGEM/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SAMSUNGEM/USDT:USDT 15m"
+    },
+    {
+      "symbol": "USAR/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for USAR/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SOFTBANK/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SOFTBANK/USDT:USDT 15m"
+    },
+    {
+      "symbol": "AMZU/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for AMZU/USDT:USDT 15m"
+    },
+    {
+      "symbol": "IBM/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for IBM/USDT:USDT 15m"
+    },
+    {
+      "symbol": "STXSTOCK/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for STXSTOCK/USDT:USDT 15m"
+    },
+    {
+      "symbol": "ADVANTEST/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for ADVANTEST/USDT:USDT 15m"
+    },
+    {
+      "symbol": "KSTR/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for KSTR/USDT:USDT 15m"
+    },
+    {
+      "symbol": "CT/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for CT/USDT:USDT 15m"
+    },
+    {
+      "symbol": "NOKSTOCK/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for NOKSTOCK/USDT:USDT 15m"
+    },
+    {
+      "symbol": "OKTA/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for OKTA/USDT:USDT 15m"
+    },
+    {
+      "symbol": "AXIS/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for AXIS/USDT:USDT 15m"
+    },
+    {
+      "symbol": "CLS/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for CLS/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SMCI/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SMCI/USDT:USDT 15m"
+    },
+    {
+      "symbol": "TWASX/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for TWASX/USDT:USDT 15m"
+    },
+    {
+      "symbol": "PURR/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for PURR/USDT:USDT 15m"
+    },
+    {
+      "symbol": "KIA/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for KIA/USDT:USDT 15m"
+    },
+    {
+      "symbol": "DISK/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for DISK/USDT:USDT 15m"
+    },
+    {
+      "symbol": "DOOSENER/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for DOOSENER/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SPCH/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SPCH/USDT:USDT 15m"
+    },
+    {
+      "symbol": "TWDELTA/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for TWDELTA/USDT:USDT 15m"
+    },
+    {
+      "symbol": "ASTS/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for ASTS/USDT:USDT 15m"
+    },
+    {
+      "symbol": "CAP/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for CAP/USDT:USDT 15m"
+    },
+    {
+      "symbol": "ELICE/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for ELICE/USDT:USDT 15m"
+    },
+    {
+      "symbol": "OUST/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for OUST/USDT:USDT 15m"
+    },
+    {
+      "symbol": "XPD/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for XPD/USDT:USDT 15m"
+    },
+    {
+      "symbol": "QNTSTOCK/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for QNTSTOCK/USDT:USDT 15m"
+    },
+    {
+      "symbol": "TEM/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for TEM/USDT:USDT 15m"
+    },
+    {
+      "symbol": "AEHR/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for AEHR/USDT:USDT 15m"
+    },
+    {
+      "symbol": "USDESTOCK/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for USDESTOCK/USDT:USDT 15m"
+    },
+    {
+      "symbol": "GRVT/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for GRVT/USDT:USDT 15m"
+    },
+    {
+      "symbol": "RDW/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for RDW/USDT:USDT 15m"
+    },
+    {
+      "symbol": "TOKYOEL/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for TOKYOEL/USDT:USDT 15m"
+    },
+    {
+      "symbol": "IONQ/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for IONQ/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SLX/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SLX/USDT:USDT 15m"
+    },
+    {
+      "symbol": "CONL/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for CONL/USDT:USDT 15m"
+    },
+    {
+      "symbol": "NANYA/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for NANYA/USDT:USDT 15m"
+    },
+    {
+      "symbol": "PIEVERSE/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for PIEVERSE/USDT:USDT 15m"
+    },
+    {
+      "symbol": "TWST/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for TWST/USDT:USDT 15m"
+    },
+    {
+      "symbol": "CHIP/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for CHIP/USDT:USDT 15m"
+    },
+    {
+      "symbol": "BNC/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for BNC/USDT:USDT 15m"
+    },
+    {
+      "symbol": "CYPH/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for CYPH/USDT:USDT 15m"
+    },
+    {
+      "symbol": "XIAOMIHKD/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for XIAOMIHKD/USDT:USDT 15m"
+    },
+    {
+      "symbol": "TWTSM/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for TWTSM/USDT:USDT 15m"
+    },
+    {
+      "symbol": "KOPN/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for KOPN/USDT:USDT 15m"
+    },
+    {
+      "symbol": "NOW/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for NOW/USDT:USDT 15m"
+    },
+    {
+      "symbol": "FOXA/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for FOXA/USDT:USDT 15m"
+    },
+    {
+      "symbol": "VLO/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for VLO/USDT:USDT 15m"
+    },
+    {
+      "symbol": "ZCSH/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for ZCSH/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SECZ/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SECZ/USDT:USDT 15m"
+    },
+    {
+      "symbol": "BP/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for BP/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SUMIELEC/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SUMIELEC/USDT:USDT 15m"
+    },
+    {
+      "symbol": "\u9f99\u867e/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for \u9f99\u867e/USDT:USDT 15m"
+    },
+    {
+      "symbol": "CCL/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for CCL/USDT:USDT 15m"
+    },
+    {
+      "symbol": "CVNA/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for CVNA/USDT:USDT 15m"
+    },
+    {
+      "symbol": "H100/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for H100/USDT:USDT 15m"
+    },
+    {
+      "symbol": "TSTOCK/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for TSTOCK/USDT:USDT 15m"
+    },
+    {
+      "symbol": "PBR/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for PBR/USDT:USDT 15m"
+    },
+    {
+      "symbol": "NFLX/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for NFLX/USDT:USDT 15m"
+    },
+    {
+      "symbol": "MURATA/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for MURATA/USDT:USDT 15m"
+    },
+    {
+      "symbol": "MARA/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for MARA/USDT:USDT 15m"
+    },
+    {
+      "symbol": "EWZ/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for EWZ/USDT:USDT 15m"
+    },
+    {
+      "symbol": "HANMI/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for HANMI/USDT:USDT 15m"
+    },
+    {
+      "symbol": "AEON/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for AEON/USDT:USDT 15m"
+    },
+    {
+      "symbol": "DDOG/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for DDOG/USDT:USDT 15m"
+    },
+    {
+      "symbol": "AAPU/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for AAPU/USDT:USDT 15m"
+    },
+    {
+      "symbol": "ONDS/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for ONDS/USDT:USDT 15m"
+    },
+    {
+      "symbol": "TAIYOYUDEN/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for TAIYOYUDEN/USDT:USDT 15m"
+    },
+    {
+      "symbol": "WALSIN/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for WALSIN/USDT:USDT 15m"
+    },
+    {
+      "symbol": "METU/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for METU/USDT:USDT 15m"
+    },
+    {
+      "symbol": "MP/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for MP/USDT:USDT 15m"
+    },
+    {
+      "symbol": "NETEASE/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for NETEASE/USDT:USDT 15m"
+    },
+    {
+      "symbol": "PENG/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for PENG/USDT:USDT 15m"
+    },
+    {
+      "symbol": "XIAOMI/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for XIAOMI/USDT:USDT 15m"
+    },
+    {
+      "symbol": "GGLL/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for GGLL/USDT:USDT 15m"
+    },
+    {
+      "symbol": "JPMUFG/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for JPMUFG/USDT:USDT 15m"
+    },
+    {
+      "symbol": "OXY/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for OXY/USDT:USDT 15m"
+    },
+    {
+      "symbol": "ECHO/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for ECHO/USDT:USDT 15m"
+    },
+    {
+      "symbol": "GWEI/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for GWEI/USDT:USDT 15m"
+    },
+    {
+      "symbol": "US/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for US/USDT:USDT 15m"
+    },
+    {
+      "symbol": "NDX100/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for NDX100/USDT:USDT 15m"
+    },
+    {
+      "symbol": "RE/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for RE/USDT:USDT 15m"
+    },
+    {
+      "symbol": "SMR/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for SMR/USDT:USDT 15m"
+    },
+    {
+      "symbol": "COP/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for COP/USDT:USDT 15m"
+    },
+    {
+      "symbol": "MSFU/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for MSFU/USDT:USDT 15m"
+    },
+    {
+      "symbol": "GIGADEVICE/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for GIGADEVICE/USDT:USDT 15m"
+    },
+    {
+      "symbol": "POET/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for POET/USDT:USDT 15m"
+    },
+    {
+      "symbol": "EURUSD/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for EURUSD/USDT:USDT 15m"
+    },
+    {
+      "symbol": "INFQ/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for INFQ/USDT:USDT 15m"
+    },
+    {
+      "symbol": "LRCX/USDT:USDT",
+      "candles": {},
+      "error": "RuntimeError: No OHLCV data returned for LRCX/USDT:USDT 15m"
+    }
+  ],
+  "discovered_markets": [
+    {
+      "symbol": "BTC/USDT:USDT",
+      "quote_volume_24h_usdt": 2170521052.81,
+      "macro_benchmark": true
+    },
+    {
+      "symbol": "ETH/USDT:USDT",
+      "quote_volume_24h_usdt": 1454054086.85,
+      "macro_benchmark": true
+    },
+    {
+      "symbol": "SOXL/USDT:USDT",
+      "quote_volume_24h_usdt": 453825866.29,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SOL/USDT:USDT",
+      "quote_volume_24h_usdt": 228666379.7,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "KORU/USDT:USDT",
+      "quote_volume_24h_usdt": 173631264.95,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "XAU/USDT:USDT",
+      "quote_volume_24h_usdt": 165572343.65,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ZEC/USDT:USDT",
+      "quote_volume_24h_usdt": 160954863.84,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SNDK/USDT:USDT",
+      "quote_volume_24h_usdt": 156051319.59,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "CL/USDT:USDT",
+      "quote_volume_24h_usdt": 106626302.16,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "HYPE/USDT:USDT",
+      "quote_volume_24h_usdt": 97417173.3,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SKHY/USDT:USDT",
+      "quote_volume_24h_usdt": 92636060.78,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MU/USDT:USDT",
+      "quote_volume_24h_usdt": 83947761.73,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "XRP/USDT:USDT",
+      "quote_volume_24h_usdt": 80299210.29,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SKHYNIX/USDT:USDT",
+      "quote_volume_24h_usdt": 69619671.57,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MSTR/USDT:USDT",
+      "quote_volume_24h_usdt": 63986060.26,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "INTC/USDT:USDT",
+      "quote_volume_24h_usdt": 63286306.52,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "NEAR/USDT:USDT",
+      "quote_volume_24h_usdt": 63134845.14,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "XAG/USDT:USDT",
+      "quote_volume_24h_usdt": 62954965.78,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "BZ/USDT:USDT",
+      "quote_volume_24h_usdt": 59160666.3,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SOXS/USDT:USDT",
+      "quote_volume_24h_usdt": 57486673.86,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SPCX/USDT:USDT",
+      "quote_volume_24h_usdt": 49736110.04,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SNXX/USDT:USDT",
+      "quote_volume_24h_usdt": 49621178.04,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "LITE/USDT:USDT",
+      "quote_volume_24h_usdt": 46085780.03,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "PEPE/USDT:USDT",
+      "quote_volume_24h_usdt": 45435797.9,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "IDOL/USDT:USDT",
+      "quote_volume_24h_usdt": 30799028.18,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ENA/USDT:USDT",
+      "quote_volume_24h_usdt": 30670398.9,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SAMSUNG/USDT:USDT",
+      "quote_volume_24h_usdt": 30406716.49,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "GOOGL/USDT:USDT",
+      "quote_volume_24h_usdt": 28945748.47,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MRVL/USDT:USDT",
+      "quote_volume_24h_usdt": 26449239.19,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "DRAM/USDT:USDT",
+      "quote_volume_24h_usdt": 25987052.75,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "CRCL/USDT:USDT",
+      "quote_volume_24h_usdt": 25737289.35,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ARIA/USDT:USDT",
+      "quote_volume_24h_usdt": 24051138.86,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "TQQQ/USDT:USDT",
+      "quote_volume_24h_usdt": 21763511.76,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "QQQ/USDT:USDT",
+      "quote_volume_24h_usdt": 21439880.92,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MINIMAX/USDT:USDT",
+      "quote_volume_24h_usdt": 20556281.96,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "PAXG/USDT:USDT",
+      "quote_volume_24h_usdt": 19915808.51,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "NVDA/USDT:USDT",
+      "quote_volume_24h_usdt": 19365174.43,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SUI/USDT:USDT",
+      "quote_volume_24h_usdt": 19047457.35,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "DOGE/USDT:USDT",
+      "quote_volume_24h_usdt": 18686638.72,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "TSLA/USDT:USDT",
+      "quote_volume_24h_usdt": 18410530.59,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "UNI/USDT:USDT",
+      "quote_volume_24h_usdt": 18092330.27,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "LYN/USDT:USDT",
+      "quote_volume_24h_usdt": 18087345.64,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "XAUT/USDT:USDT",
+      "quote_volume_24h_usdt": 17980411.35,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "TRUMP/USDT:USDT",
+      "quote_volume_24h_usdt": 17359136.15,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "OPENAI/USDT:USDT",
+      "quote_volume_24h_usdt": 17347532.27,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "AAPL/USDT:USDT",
+      "quote_volume_24h_usdt": 17075662.87,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "NBIS/USDT:USDT",
+      "quote_volume_24h_usdt": 16678897.9,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ADA/USDT:USDT",
+      "quote_volume_24h_usdt": 16379567.9,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "LINK/USDT:USDT",
+      "quote_volume_24h_usdt": 15686602.1,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "AKE/USDT:USDT",
+      "quote_volume_24h_usdt": 14844608.82,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ZHIPU/USDT:USDT",
+      "quote_volume_24h_usdt": 14630132.35,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "WLD/USDT:USDT",
+      "quote_volume_24h_usdt": 14490397.38,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "CSOPSK2LHKD/USDT:USDT",
+      "quote_volume_24h_usdt": 14259214.31,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "INTW/USDT:USDT",
+      "quote_volume_24h_usdt": 13547501.09,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "AMD/USDT:USDT",
+      "quote_volume_24h_usdt": 13477347.48,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "AAOI/USDT:USDT",
+      "quote_volume_24h_usdt": 13025769.47,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "BNB/USDT:USDT",
+      "quote_volume_24h_usdt": 12926360.9,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MSFT/USDT:USDT",
+      "quote_volume_24h_usdt": 12426237.67,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "PUMP/USDT:USDT",
+      "quote_volume_24h_usdt": 11489398.6,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "EVAA/USDT:USDT",
+      "quote_volume_24h_usdt": 11487281.59,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "BE/USDT:USDT",
+      "quote_volume_24h_usdt": 10663111.44,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "EWY/USDT:USDT",
+      "quote_volume_24h_usdt": 10616631.25,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "COIN/USDT:USDT",
+      "quote_volume_24h_usdt": 10306776.14,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "BEAM/USDT:USDT",
+      "quote_volume_24h_usdt": 10093210.97,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MSTU/USDT:USDT",
+      "quote_volume_24h_usdt": 10080452.74,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "AAVE/USDT:USDT",
+      "quote_volume_24h_usdt": 10079842.38,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "AMZN/USDT:USDT",
+      "quote_volume_24h_usdt": 10041994.85,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SQQQ/USDT:USDT",
+      "quote_volume_24h_usdt": 9857171.09,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "AXTI/USDT:USDT",
+      "quote_volume_24h_usdt": 9695070.53,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "UAI/USDT:USDT",
+      "quote_volume_24h_usdt": 8534165.46,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "AVAX/USDT:USDT",
+      "quote_volume_24h_usdt": 8519043.06,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "PLTR/USDT:USDT",
+      "quote_volume_24h_usdt": 7976888.76,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ZHONGJI/USDT:USDT",
+      "quote_volume_24h_usdt": 7853531.15,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "UNITREE/USDT:USDT",
+      "quote_volume_24h_usdt": 7737015.45,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "TAO/USDT:USDT",
+      "quote_volume_24h_usdt": 7379781.43,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ORCL/USDT:USDT",
+      "quote_volume_24h_usdt": 7370245.94,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ONDO/USDT:USDT",
+      "quote_volume_24h_usdt": 7199796.84,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ARB/USDT:USDT",
+      "quote_volume_24h_usdt": 7176887.96,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "COHR/USDT:USDT",
+      "quote_volume_24h_usdt": 7015449.33,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "APR/USDT:USDT",
+      "quote_volume_24h_usdt": 6866722.74,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "QNT/USDT:USDT",
+      "quote_volume_24h_usdt": 6764759.43,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "CBRS/USDT:USDT",
+      "quote_volume_24h_usdt": 6702414.59,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "BCH/USDT:USDT",
+      "quote_volume_24h_usdt": 6689314.22,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SKUU/USDT:USDT",
+      "quote_volume_24h_usdt": 6665749.16,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "RKLB/USDT:USDT",
+      "quote_volume_24h_usdt": 6650131.36,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "IREN/USDT:USDT",
+      "quote_volume_24h_usdt": 6504186.24,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "JCT/USDT:USDT",
+      "quote_volume_24h_usdt": 6270184.26,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SOPH/USDT:USDT",
+      "quote_volume_24h_usdt": 6100851.48,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "BX/USDT:USDT",
+      "quote_volume_24h_usdt": 6022003.93,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "INJ/USDT:USDT",
+      "quote_volume_24h_usdt": 5876246.67,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ARM/USDT:USDT",
+      "quote_volume_24h_usdt": 5854517.36,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "HOT/USDT:USDT",
+      "quote_volume_24h_usdt": 5776235.44,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "TRX/USDT:USDT",
+      "quote_volume_24h_usdt": 5709313.71,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "TSM/USDT:USDT",
+      "quote_volume_24h_usdt": 5642145.74,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "CRWV/USDT:USDT",
+      "quote_volume_24h_usdt": 5492631.78,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "BTW/USDT:USDT",
+      "quote_volume_24h_usdt": 5364610.28,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "XPL/USDT:USDT",
+      "quote_volume_24h_usdt": 5206217.17,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "WDC/USDT:USDT",
+      "quote_volume_24h_usdt": 5146112.31,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MUU/USDT:USDT",
+      "quote_volume_24h_usdt": 5036679.42,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "\u725b\u6765/USDT:USDT",
+      "quote_volume_24h_usdt": 4939354.88,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "META/USDT:USDT",
+      "quote_volume_24h_usdt": 4912824.07,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "HOOD/USDT:USDT",
+      "quote_volume_24h_usdt": 4660788.47,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "RAM/USDT:USDT",
+      "quote_volume_24h_usdt": 4498770.65,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "NATGAS/USDT:USDT",
+      "quote_volume_24h_usdt": 4410360.47,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "Q/USDT:USDT",
+      "quote_volume_24h_usdt": 4396120.01,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "XLM/USDT:USDT",
+      "quote_volume_24h_usdt": 4395366.63,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "XPT/USDT:USDT",
+      "quote_volume_24h_usdt": 4252014.77,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ZRO/USDT:USDT",
+      "quote_volume_24h_usdt": 4199663.5,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "LTC/USDT:USDT",
+      "quote_volume_24h_usdt": 4048957.1,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "LASERTEC/USDT:USDT",
+      "quote_volume_24h_usdt": 4045784.35,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SOXX/USDT:USDT",
+      "quote_volume_24h_usdt": 4031636.23,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "APT/USDT:USDT",
+      "quote_volume_24h_usdt": 3992067.72,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "DELL/USDT:USDT",
+      "quote_volume_24h_usdt": 3954650.06,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "AVGO/USDT:USDT",
+      "quote_volume_24h_usdt": 3888614.96,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ZHIPUHKD/USDT:USDT",
+      "quote_volume_24h_usdt": 3873449.34,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "UVXY/USDT:USDT",
+      "quote_volume_24h_usdt": 3812064.71,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "FIL/USDT:USDT",
+      "quote_volume_24h_usdt": 3798398.16,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "CSOPSS2LHKD/USDT:USDT",
+      "quote_volume_24h_usdt": 3776155.61,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "FARTCOIN/USDT:USDT",
+      "quote_volume_24h_usdt": 3694067.54,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MINIMAXHKD/USDT:USDT",
+      "quote_volume_24h_usdt": 3687831.44,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "KIOXIA/USDT:USDT",
+      "quote_volume_24h_usdt": 3630459.5,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "LSK/USDT:USDT",
+      "quote_volume_24h_usdt": 3587622.33,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "FET/USDT:USDT",
+      "quote_volume_24h_usdt": 3524816.96,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MVLL/USDT:USDT",
+      "quote_volume_24h_usdt": 3485356.22,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SKDD/USDT:USDT",
+      "quote_volume_24h_usdt": 3300650.84,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "DOT/USDT:USDT",
+      "quote_volume_24h_usdt": 3222212.94,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "INIT/USDT:USDT",
+      "quote_volume_24h_usdt": 3202884.83,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "PONS/USDT:USDT",
+      "quote_volume_24h_usdt": 3117573.27,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "RUNE/USDT:USDT",
+      "quote_volume_24h_usdt": 3102676.61,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MAGMA/USDT:USDT",
+      "quote_volume_24h_usdt": 3092186.1,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "STRK/USDT:USDT",
+      "quote_volume_24h_usdt": 3030039.07,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MRNA/USDT:USDT",
+      "quote_volume_24h_usdt": 2956753.43,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "HYUNDAI/USDT:USDT",
+      "quote_volume_24h_usdt": 2911880.79,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "CXMT/USDT:USDT",
+      "quote_volume_24h_usdt": 2788274.14,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SHIB/USDT:USDT",
+      "quote_volume_24h_usdt": 2715609.61,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "PENGU/USDT:USDT",
+      "quote_volume_24h_usdt": 2653295.23,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "XMR/USDT:USDT",
+      "quote_volume_24h_usdt": 2539053.01,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "OP/USDT:USDT",
+      "quote_volume_24h_usdt": 2468760.79,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "BABA/USDT:USDT",
+      "quote_volume_24h_usdt": 2399057.57,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SPY/USDT:USDT",
+      "quote_volume_24h_usdt": 2398475.87,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "GLW/USDT:USDT",
+      "quote_volume_24h_usdt": 2380052.5,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "QCOM/USDT:USDT",
+      "quote_volume_24h_usdt": 2318036.49,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "BMNR/USDT:USDT",
+      "quote_volume_24h_usdt": 2292397.0,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "FLNC/USDT:USDT",
+      "quote_volume_24h_usdt": 2273481.48,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "POWR/USDT:USDT",
+      "quote_volume_24h_usdt": 2256540.86,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "BIRB/USDT:USDT",
+      "quote_volume_24h_usdt": 2220339.31,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "JIO/USDT:USDT",
+      "quote_volume_24h_usdt": 2174909.95,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "RENDER/USDT:USDT",
+      "quote_volume_24h_usdt": 2166371.95,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "BLESS/USDT:USDT",
+      "quote_volume_24h_usdt": 2151575.9,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "TIA/USDT:USDT",
+      "quote_volume_24h_usdt": 2136937.06,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MEGA/USDT:USDT",
+      "quote_volume_24h_usdt": 2119370.86,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "1000CAT/USDT:USDT",
+      "quote_volume_24h_usdt": 2111816.82,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "JUP/USDT:USDT",
+      "quote_volume_24h_usdt": 2027314.77,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ASML/USDT:USDT",
+      "quote_volume_24h_usdt": 2015533.02,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ASX/USDT:USDT",
+      "quote_volume_24h_usdt": 2007147.69,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "G/USDT:USDT",
+      "quote_volume_24h_usdt": 1969542.96,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "IRYS/USDT:USDT",
+      "quote_volume_24h_usdt": 1941669.98,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "HBAR/USDT:USDT",
+      "quote_volume_24h_usdt": 1898103.03,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "BR/USDT:USDT",
+      "quote_volume_24h_usdt": 1880285.81,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ATOM/USDT:USDT",
+      "quote_volume_24h_usdt": 1873134.63,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ANTHROPIC/USDT:USDT",
+      "quote_volume_24h_usdt": 1864141.1,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SEI/USDT:USDT",
+      "quote_volume_24h_usdt": 1846408.61,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SIREN/USDT:USDT",
+      "quote_volume_24h_usdt": 1839534.37,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "LIT/USDT:USDT",
+      "quote_volume_24h_usdt": 1796745.69,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "STX/USDT:USDT",
+      "quote_volume_24h_usdt": 1793307.63,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MARSCOIN/USDT:USDT",
+      "quote_volume_24h_usdt": 1776395.29,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "1000BONK/USDT:USDT",
+      "quote_volume_24h_usdt": 1767041.29,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "CRDO/USDT:USDT",
+      "quote_volume_24h_usdt": 1743612.77,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SSPC/USDT:USDT",
+      "quote_volume_24h_usdt": 1674417.81,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SAMSUNGEM/USDT:USDT",
+      "quote_volume_24h_usdt": 1654048.55,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "USAR/USDT:USDT",
+      "quote_volume_24h_usdt": 1646910.39,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "OGN/USDT:USDT",
+      "quote_volume_24h_usdt": 1635920.59,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "HAEDAL/USDT:USDT",
+      "quote_volume_24h_usdt": 1625465.91,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SOFTBANK/USDT:USDT",
+      "quote_volume_24h_usdt": 1615641.25,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ICNT/USDT:USDT",
+      "quote_volume_24h_usdt": 1582518.3,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "GRASS/USDT:USDT",
+      "quote_volume_24h_usdt": 1550367.82,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "AMZU/USDT:USDT",
+      "quote_volume_24h_usdt": 1520007.73,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "HUMA/USDT:USDT",
+      "quote_volume_24h_usdt": 1496349.97,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "BEAT/USDT:USDT",
+      "quote_volume_24h_usdt": 1469010.46,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "IBM/USDT:USDT",
+      "quote_volume_24h_usdt": 1445908.13,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "CRV/USDT:USDT",
+      "quote_volume_24h_usdt": 1437286.85,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "STXSTOCK/USDT:USDT",
+      "quote_volume_24h_usdt": 1417448.8,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ADVANTEST/USDT:USDT",
+      "quote_volume_24h_usdt": 1401237.95,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ASTER/USDT:USDT",
+      "quote_volume_24h_usdt": 1379629.39,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "NIL/USDT:USDT",
+      "quote_volume_24h_usdt": 1376689.03,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "WIF/USDT:USDT",
+      "quote_volume_24h_usdt": 1375392.37,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "PENDLE/USDT:USDT",
+      "quote_volume_24h_usdt": 1365428.37,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "KSTR/USDT:USDT",
+      "quote_volume_24h_usdt": 1338728.8,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "CT/USDT:USDT",
+      "quote_volume_24h_usdt": 1327263.19,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "NOKSTOCK/USDT:USDT",
+      "quote_volume_24h_usdt": 1323070.21,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "OKTA/USDT:USDT",
+      "quote_volume_24h_usdt": 1297186.46,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "AXIS/USDT:USDT",
+      "quote_volume_24h_usdt": 1294225.71,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "CLS/USDT:USDT",
+      "quote_volume_24h_usdt": 1272246.19,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "VVV/USDT:USDT",
+      "quote_volume_24h_usdt": 1265309.06,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SMCI/USDT:USDT",
+      "quote_volume_24h_usdt": 1218583.24,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "TWASX/USDT:USDT",
+      "quote_volume_24h_usdt": 1218085.07,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "PURR/USDT:USDT",
+      "quote_volume_24h_usdt": 1184152.24,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ICP/USDT:USDT",
+      "quote_volume_24h_usdt": 1163144.73,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "KIA/USDT:USDT",
+      "quote_volume_24h_usdt": 1155098.25,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "RED/USDT:USDT",
+      "quote_volume_24h_usdt": 1148218.5,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "AERO/USDT:USDT",
+      "quote_volume_24h_usdt": 1132135.99,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "XAN/USDT:USDT",
+      "quote_volume_24h_usdt": 1123299.77,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "DISK/USDT:USDT",
+      "quote_volume_24h_usdt": 1118005.25,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "GPS/USDT:USDT",
+      "quote_volume_24h_usdt": 1090138.29,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "DOOSENER/USDT:USDT",
+      "quote_volume_24h_usdt": 1086494.01,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SPCH/USDT:USDT",
+      "quote_volume_24h_usdt": 1086150.65,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "PYTH/USDT:USDT",
+      "quote_volume_24h_usdt": 1081420.53,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "TWDELTA/USDT:USDT",
+      "quote_volume_24h_usdt": 1068254.06,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ASTS/USDT:USDT",
+      "quote_volume_24h_usdt": 1039351.08,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "LDO/USDT:USDT",
+      "quote_volume_24h_usdt": 1035725.22,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "DOOD/USDT:USDT",
+      "quote_volume_24h_usdt": 996500.61,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "CAP/USDT:USDT",
+      "quote_volume_24h_usdt": 991718.2,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "PARTI/USDT:USDT",
+      "quote_volume_24h_usdt": 990984.86,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ELICE/USDT:USDT",
+      "quote_volume_24h_usdt": 985852.56,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "OUST/USDT:USDT",
+      "quote_volume_24h_usdt": 985753.12,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "XPD/USDT:USDT",
+      "quote_volume_24h_usdt": 974182.54,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ETHFI/USDT:USDT",
+      "quote_volume_24h_usdt": 947799.6,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "QNTSTOCK/USDT:USDT",
+      "quote_volume_24h_usdt": 936280.93,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "VIRTUAL/USDT:USDT",
+      "quote_volume_24h_usdt": 934910.66,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "TEM/USDT:USDT",
+      "quote_volume_24h_usdt": 933226.15,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "XPIN/USDT:USDT",
+      "quote_volume_24h_usdt": 928725.3,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "AEHR/USDT:USDT",
+      "quote_volume_24h_usdt": 923658.33,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "USDESTOCK/USDT:USDT",
+      "quote_volume_24h_usdt": 918141.4,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ETC/USDT:USDT",
+      "quote_volume_24h_usdt": 895246.91,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "USELESS/USDT:USDT",
+      "quote_volume_24h_usdt": 892617.03,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "GRVT/USDT:USDT",
+      "quote_volume_24h_usdt": 891713.21,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "RDW/USDT:USDT",
+      "quote_volume_24h_usdt": 885905.92,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "LA/USDT:USDT",
+      "quote_volume_24h_usdt": 877368.43,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "TOKYOEL/USDT:USDT",
+      "quote_volume_24h_usdt": 872998.99,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "IONQ/USDT:USDT",
+      "quote_volume_24h_usdt": 866068.93,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SLX/USDT:USDT",
+      "quote_volume_24h_usdt": 861421.6,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "CONL/USDT:USDT",
+      "quote_volume_24h_usdt": 851785.22,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "NANYA/USDT:USDT",
+      "quote_volume_24h_usdt": 848501.48,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "JTO/USDT:USDT",
+      "quote_volume_24h_usdt": 841303.01,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "PIEVERSE/USDT:USDT",
+      "quote_volume_24h_usdt": 836786.26,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "TWST/USDT:USDT",
+      "quote_volume_24h_usdt": 829246.33,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "CHIP/USDT:USDT",
+      "quote_volume_24h_usdt": 829027.95,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MCD/USDT:USDT",
+      "quote_volume_24h_usdt": 820098.18,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "FORM/USDT:USDT",
+      "quote_volume_24h_usdt": 812054.88,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ERA/USDT:USDT",
+      "quote_volume_24h_usdt": 801959.11,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "BNC/USDT:USDT",
+      "quote_volume_24h_usdt": 798736.05,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "CYPH/USDT:USDT",
+      "quote_volume_24h_usdt": 784647.97,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "XIAOMIHKD/USDT:USDT",
+      "quote_volume_24h_usdt": 782287.67,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SOON/USDT:USDT",
+      "quote_volume_24h_usdt": 781343.19,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "BGB/USDT:USDT",
+      "quote_volume_24h_usdt": 778322.37,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ALGO/USDT:USDT",
+      "quote_volume_24h_usdt": 767572.03,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "RIVER/USDT:USDT",
+      "quote_volume_24h_usdt": 766281.54,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "TWTSM/USDT:USDT",
+      "quote_volume_24h_usdt": 766133.79,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "KOPN/USDT:USDT",
+      "quote_volume_24h_usdt": 766039.19,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MOVR/USDT:USDT",
+      "quote_volume_24h_usdt": 764208.02,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "NOW/USDT:USDT",
+      "quote_volume_24h_usdt": 762049.17,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "RAY/USDT:USDT",
+      "quote_volume_24h_usdt": 758256.98,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "AWE/USDT:USDT",
+      "quote_volume_24h_usdt": 751015.55,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "KAS/USDT:USDT",
+      "quote_volume_24h_usdt": 748884.27,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "PROM/USDT:USDT",
+      "quote_volume_24h_usdt": 742854.11,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "FOXA/USDT:USDT",
+      "quote_volume_24h_usdt": 735722.67,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "VLO/USDT:USDT",
+      "quote_volume_24h_usdt": 735452.66,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ZCSH/USDT:USDT",
+      "quote_volume_24h_usdt": 735253.01,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SECZ/USDT:USDT",
+      "quote_volume_24h_usdt": 727821.63,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "BP/USDT:USDT",
+      "quote_volume_24h_usdt": 726981.66,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MON/USDT:USDT",
+      "quote_volume_24h_usdt": 725332.45,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SUMIELEC/USDT:USDT",
+      "quote_volume_24h_usdt": 725157.82,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "COW/USDT:USDT",
+      "quote_volume_24h_usdt": 724279.87,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "FLOCK/USDT:USDT",
+      "quote_volume_24h_usdt": 722296.85,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "\u9f99\u867e/USDT:USDT",
+      "quote_volume_24h_usdt": 722113.03,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "DASH/USDT:USDT",
+      "quote_volume_24h_usdt": 721354.93,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "CCL/USDT:USDT",
+      "quote_volume_24h_usdt": 715997.6,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "CVNA/USDT:USDT",
+      "quote_volume_24h_usdt": 712647.14,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "H100/USDT:USDT",
+      "quote_volume_24h_usdt": 711435.12,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "KITE/USDT:USDT",
+      "quote_volume_24h_usdt": 707136.45,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "TSTOCK/USDT:USDT",
+      "quote_volume_24h_usdt": 695401.82,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "PBR/USDT:USDT",
+      "quote_volume_24h_usdt": 692494.63,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "NFLX/USDT:USDT",
+      "quote_volume_24h_usdt": 684623.27,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MURATA/USDT:USDT",
+      "quote_volume_24h_usdt": 683859.23,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MARA/USDT:USDT",
+      "quote_volume_24h_usdt": 682438.04,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "EWZ/USDT:USDT",
+      "quote_volume_24h_usdt": 677405.19,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "HANMI/USDT:USDT",
+      "quote_volume_24h_usdt": 676048.33,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "AR/USDT:USDT",
+      "quote_volume_24h_usdt": 668459.93,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "T/USDT:USDT",
+      "quote_volume_24h_usdt": 667169.09,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SAND/USDT:USDT",
+      "quote_volume_24h_usdt": 664843.67,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "FLUID/USDT:USDT",
+      "quote_volume_24h_usdt": 659925.58,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "AEON/USDT:USDT",
+      "quote_volume_24h_usdt": 657483.79,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "DDOG/USDT:USDT",
+      "quote_volume_24h_usdt": 656936.71,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "AAPU/USDT:USDT",
+      "quote_volume_24h_usdt": 656754.82,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ONDS/USDT:USDT",
+      "quote_volume_24h_usdt": 654883.66,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "GRAM/USDT:USDT",
+      "quote_volume_24h_usdt": 652677.77,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "TAIYOYUDEN/USDT:USDT",
+      "quote_volume_24h_usdt": 645278.06,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "PI/USDT:USDT",
+      "quote_volume_24h_usdt": 642371.76,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "WALSIN/USDT:USDT",
+      "quote_volume_24h_usdt": 642292.61,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "METU/USDT:USDT",
+      "quote_volume_24h_usdt": 639476.77,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "GALA/USDT:USDT",
+      "quote_volume_24h_usdt": 632644.03,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MP/USDT:USDT",
+      "quote_volume_24h_usdt": 625796.98,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "WLFI/USDT:USDT",
+      "quote_volume_24h_usdt": 612838.24,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ZK/USDT:USDT",
+      "quote_volume_24h_usdt": 605883.66,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "PHA/USDT:USDT",
+      "quote_volume_24h_usdt": 602515.71,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "NETEASE/USDT:USDT",
+      "quote_volume_24h_usdt": 597190.53,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "PENG/USDT:USDT",
+      "quote_volume_24h_usdt": 595899.31,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "XIAOMI/USDT:USDT",
+      "quote_volume_24h_usdt": 585487.12,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "POL/USDT:USDT",
+      "quote_volume_24h_usdt": 583907.34,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "GGLL/USDT:USDT",
+      "quote_volume_24h_usdt": 581231.3,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "JPMUFG/USDT:USDT",
+      "quote_volume_24h_usdt": 579041.76,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "OXY/USDT:USDT",
+      "quote_volume_24h_usdt": 566640.3,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ECHO/USDT:USDT",
+      "quote_volume_24h_usdt": 564006.01,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "GWEI/USDT:USDT",
+      "quote_volume_24h_usdt": 563888.73,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "BIO/USDT:USDT",
+      "quote_volume_24h_usdt": 563630.54,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "US/USDT:USDT",
+      "quote_volume_24h_usdt": 557381.16,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ORDI/USDT:USDT",
+      "quote_volume_24h_usdt": 554237.73,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ZEN/USDT:USDT",
+      "quote_volume_24h_usdt": 553563.19,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "ONE/USDT:USDT",
+      "quote_volume_24h_usdt": 544537.15,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "NDX100/USDT:USDT",
+      "quote_volume_24h_usdt": 543334.1,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "RE/USDT:USDT",
+      "quote_volume_24h_usdt": 540902.76,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "SMR/USDT:USDT",
+      "quote_volume_24h_usdt": 529547.02,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "COP/USDT:USDT",
+      "quote_volume_24h_usdt": 528427.28,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "MSFU/USDT:USDT",
+      "quote_volume_24h_usdt": 525773.41,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "GIGADEVICE/USDT:USDT",
+      "quote_volume_24h_usdt": 522167.97,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "POET/USDT:USDT",
+      "quote_volume_24h_usdt": 520413.86,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "RDDT/USDT:USDT",
+      "quote_volume_24h_usdt": 517752.76,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "TAG/USDT:USDT",
+      "quote_volume_24h_usdt": 517744.22,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "EURUSD/USDT:USDT",
+      "quote_volume_24h_usdt": 509648.99,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "COTI/USDT:USDT",
+      "quote_volume_24h_usdt": 508405.32,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "INFQ/USDT:USDT",
+      "quote_volume_24h_usdt": 503794.1,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "LLY/USDT:USDT",
+      "quote_volume_24h_usdt": 500652.95,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "AVA/USDT:USDT",
+      "quote_volume_24h_usdt": 500434.9,
+      "macro_benchmark": false
+    },
+    {
+      "symbol": "LRCX/USDT:USDT",
+      "quote_volume_24h_usdt": 500346.99,
+      "macro_benchmark": false
+    }
+  ]
+}
