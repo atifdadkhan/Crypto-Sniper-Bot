@@ -188,7 +188,7 @@ def summarize(df):
                 "tp1_hit_rate_pct": None, "note": "No qualifying trades found."}
     r = df.net_r.astype(float)
     gains, losses = float(r[r > 0].sum()), float(-r[r < 0].sum())
-    equity = r.cumsum()
+    equity = pd.concat([pd.Series([0.0]), r.cumsum().reset_index(drop=True)], ignore_index=True)
     drawdown = equity - equity.cummax()
     return {
         "trades": int(len(df)), "win_rate_pct": round(float((r > 0).mean() * 100), 2),
