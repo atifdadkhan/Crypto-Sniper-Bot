@@ -129,6 +129,11 @@ def recover_missing_candles(exchange, symbol, timeframe, frame, step_ms, max_att
             additions.extend(recovered)
             time.sleep(max(float(getattr(exchange, "rateLimit", 100)), 100.0) / 1000.0)
         if not additions:
+            # A provider may transiently omit a candle. Retry the exact timestamp
+            # on the next attempt before declaring the gap unrecoverable.
+            if attempt < max_attempts:
+                time.sleep(max(float(getattr(exchange, "rateLimit", 100)), 250.0) / 1000.0)
+                continue
             break
         extra = pd.DataFrame(additions, columns=["timestamp", "open", "high", "low", "close", "volume"])
         extra["timestamp"] = pd.to_datetime(extra["timestamp"], unit="ms", utc=True)
@@ -173,7 +178,13 @@ def download_one(exchange, symbol: str, timeframe: str, days: int, out_dir: Path
     frame = recover_missing_candles(exchange, symbol, timeframe, frame, step)
     if len(frame) > before:
         print(f"Recovered {len(frame) - before} missing {timeframe} candle(s) for {symbol}")
-    validate_timeframe(frame, timeframe, symbol)
+    try:
+        # Preserve strict validation for all timeframes except 15m. The backtest
+        # can safely use continuous 15m segments without ever trading across a gap.
+        validate_timeframe(frame, timeframe, symbol,
+                           allow_gaps=(timeframe == "15m"))
+    except ValueError:
+        raise
 
     expected_start = pd.Timestamp(since, unit="ms", tz="UTC")
     actual_start = frame.timestamp.iloc[0]
@@ -196,8 +207,12 @@ def download_one(exchange, symbol: str, timeframe: str, days: int, out_dir: Path
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{timeframe}.csv"
     frame.to_csv(path, index=False)
-    print(f"{symbol} {timeframe}: {len(frame)} validated candles -> {path}")
-    return {"candles": len(frame), "first_timestamp": str(frame.timestamp.iloc[0]),
+    gaps = int((pd.DatetimeIndex(frame.timestamp).asi8[1:] -
+                pd.DatetimeIndex(frame.timestamp).asi8[:-1] != step * 1_000_000).sum())
+    status = "validated" if gaps == 0 else f"validated with {gaps} gap(s); backtest will segment"
+    print(f"{symbol} {timeframe}: {len(frame)} candles {status} -> {path}")
+    return {"candles": len(frame), "gap_count": gaps,
+            "first_timestamp": str(frame.timestamp.iloc[0]),
             "last_timestamp": str(frame.timestamp.iloc[-1])}
 
 

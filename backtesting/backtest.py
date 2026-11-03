@@ -159,9 +159,19 @@ def simulate(sig, bars, entry_i, max_hold=96, fee_slippage_pct=0.12,
     }
 
 
-def run_symbol(symbol, target_frames, btc_frames, eth_frames, fee_slippage_pct=0.12,
-               max_hold=96, funding_bps_per_8h=0.0):
-    target, btc, eth = prepare(target_frames), prepare(btc_frames), prepare(eth_frames)
+def _contiguous_15m_segments(frame):
+    """Split 15m candles at missing intervals; no simulation crosses a gap."""
+    if frame.empty:
+        return []
+    stamps = pd.DatetimeIndex(frame.timestamp)
+    values = stamps.asi8 // 1_000_000
+    cuts = (np.flatnonzero(np.diff(values) != TF_MS["15m"]) + 1).tolist()
+    return [part.reset_index(drop=True) for part in np.split(frame, cuts) if len(part)]
+
+
+def _run_contiguous_segment(symbol, target_frames, btc, eth, fee_slippage_pct,
+                            max_hold, funding_bps_per_8h):
+    target = prepare(target_frames)
     fast = target["15m"][0]
     trades, next_signal_i = [], 100
     for i in range(100, len(fast) - 1):
@@ -170,15 +180,37 @@ def run_symbol(symbol, target_frames, btc_frames, eth_frames, fee_slippage_pct=0
         sig = make_signal(symbol, target, btc, eth, i)
         if sig is None:
             continue
+        # The segment ends at a data gap. simulate() receives only this segment,
+        # so a position can never be carried through an unknown candle.
         trade = simulate(sig, fast, i + 1, max_hold, fee_slippage_pct, funding_bps_per_8h)
         if trade is None:
             continue
         trades.append(trade)
-        # A new signal is allowed only after the previous simulated exit candle.
         exit_stamp = pd.Timestamp(trade["exit_time"])
         matched = np.flatnonzero(pd.DatetimeIndex(fast.timestamp) == exit_stamp)
         next_signal_i = int(matched[0]) + 1 if len(matched) else i + 2
     return pd.DataFrame(trades)
+
+
+def run_symbol(symbol, target_frames, btc_frames, eth_frames, fee_slippage_pct=0.12,
+               max_hold=96, funding_bps_per_8h=0.0):
+    btc, eth = prepare(btc_frames), prepare(eth_frames)
+    all_trades = []
+    segments = _contiguous_15m_segments(target_frames["15m"])
+    for segment in segments:
+        # Require the existing 100-bar indicator warm-up independently after
+        # every gap; short fragments are reported by omission, never stitched.
+        if len(segment) <= 100:
+            continue
+        segment_frames = dict(target_frames)
+        segment_frames["15m"] = segment
+        result = _run_contiguous_segment(
+            symbol, segment_frames, btc, eth, fee_slippage_pct,
+            max_hold, funding_bps_per_8h
+        )
+        if not result.empty:
+            all_trades.append(result)
+    return pd.concat(all_trades, ignore_index=True) if all_trades else pd.DataFrame()
 
 
 def summarize(df):
@@ -219,7 +251,8 @@ def main():
         p.error("--max-hold-bars must be >= 1")
 
     root = Path(a.data_dir)
-    btc, eth = load_symbol_folder(root / "BTCUSDT"), load_symbol_folder(root / "ETHUSDT")
+    btc = load_symbol_folder(root / "BTCUSDT", allow_15m_gaps=True)
+    eth = load_symbol_folder(root / "ETHUSDT", allow_15m_gaps=True)
     if a.symbols.strip().lower() == "auto":
         symbols = sorted(p.name.upper() for p in root.iterdir() if p.is_dir()
                          and p.name.upper().endswith("USDT")
@@ -234,7 +267,7 @@ def main():
     reports, all_trades = {}, []
     for symbol in symbols:
         try:
-            frames = load_symbol_folder(root / symbol)
+            frames = load_symbol_folder(root / symbol, allow_15m_gaps=True)
             trades = run_symbol(symbol, frames, btc, eth, a.fee_slippage_pct,
                                 a.max_hold_bars, a.funding_bps_per_8h)
             reports[symbol] = summarize(trades)
@@ -257,7 +290,7 @@ def main():
         f"**Funding sensitivity:** {a.funding_bps_per_8h:.4f} bps per 8h", "",
         "A zero funding assumption means funding is omitted. Funding sensitivity is not actual historical funding.",
         "Stop gaps are filled at the worse bar open. If stop and target both occur in one OHLC bar, stop is assumed first.",
-        "Only datasets with continuous, UTC-aligned candles are accepted. Historical live quote is unavailable; signal close is a proxy.",
+        "15m data gaps split each market into independent continuous segments; no trade crosses a gap and each segment needs a fresh 100-bar warm-up. Higher timeframes remain strictly continuous. Historical live quote is unavailable; signal close is a proxy.",
         "", "| Symbol | Trades | Win rate | Profit factor | Net R | Max DD (R) | TP1 hit rate | Status |",
         "|---|---:|---:|---:|---:|---:|---:|---|"
     ]

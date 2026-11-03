@@ -136,3 +136,39 @@ def test_gap_recovery_never_synthesizes_unavailable_candle():
     out = recover_missing_candles(FakeExchange(), "BTC/USDT:USDT", "15m", frame, 900000)
     with pytest.raises(ValueError, match="timestamp gap"):
         validate_timeframe(out, "15m", "BTC")
+
+
+
+def test_timeframe_validation_allows_integral_gaps_only_when_requested():
+    frame = _frame(n=5)
+    frame.loc[3:, "timestamp"] += 900000
+    out = normalise_ohlcv(frame, min_candles=1)
+    with pytest.raises(ValueError, match="timestamp gap"):
+        validate_timeframe(out, "15m", "TESTUSDT")
+    validate_timeframe(out, "15m", "TESTUSDT", allow_gaps=True)
+
+
+def test_gap_recovery_retries_before_leaving_gap_unresolved():
+    start = 1760000400000
+    frame = _frame(n=3, start=start).drop(index=1).reset_index(drop=True)
+    frame = normalise_ohlcv(frame, min_candles=1)
+
+    class FakeExchange:
+        rateLimit = 0
+        def __init__(self):
+            self.calls = 0
+        def fetch_ohlcv(self, symbol, timeframe, since, limit):
+            self.calls += 1
+            if self.calls == 2:
+                return [[since, 100, 102, 99, 101, 10]]
+            return []
+        def market(self, symbol):
+            return {"id": "BTCUSDT"}
+        def publicMixGetV2MixMarketHistoryCandles(self, params):
+            return {"data": []}
+
+    exchange = FakeExchange()
+    out = recover_missing_candles(exchange, "BTC/USDT:USDT", "15m",
+                                  frame, 900000, max_attempts=2)
+    validate_timeframe(out, "15m", "BTC")
+    assert exchange.calls == 2

@@ -57,7 +57,8 @@ def normalise_ohlcv(frame: pd.DataFrame, min_candles: int = 100) -> pd.DataFrame
     return df[["timestamp", "open", "high", "low", "close", "volume"]]
 
 
-def validate_timeframe(frame: pd.DataFrame, timeframe: str, symbol: str = "dataset") -> None:
+def validate_timeframe(frame: pd.DataFrame, timeframe: str, symbol: str = "dataset",
+                       allow_gaps: bool = False) -> None:
     if timeframe not in TIMEFRAME_MS:
         raise ValueError(f"Unsupported timeframe: {timeframe}")
     if len(frame) < 2:
@@ -73,6 +74,10 @@ def validate_timeframe(frame: pd.DataFrame, timeframe: str, symbol: str = "datas
     gaps = np.diff(values)
     bad = np.flatnonzero(gaps != interval)
     if len(bad):
+        # Gap-tolerant mode is used only for explicitly segmented backtests.
+        # It still rejects off-grid timestamps and non-integral interval gaps.
+        if allow_gaps and bool(np.all(gaps[bad] % interval == 0)):
+            return
         first = int(bad[0])
         missing = max(int(gaps[first] // interval) - 1, 0)
         raise ValueError(
@@ -95,7 +100,7 @@ def load_file(path: Path) -> pd.DataFrame:
         raise ValueError(f"{path}: {exc}") from exc
 
 
-def load_symbol_folder(folder: Path) -> dict:
+def load_symbol_folder(folder: Path, allow_15m_gaps: bool = False) -> dict:
     if not folder.exists() or not folder.is_dir():
         raise ValueError(f"DATA INSUFFICIENT: missing symbol folder {folder}")
     result = {}
@@ -108,5 +113,6 @@ def load_symbol_folder(folder: Path) -> dict:
         if len(matches) != 1:
             raise ValueError(f"{folder}: expected exactly one file for {tf}, found {len(matches)}")
         result[tf] = load_file(matches[0])
-        validate_timeframe(result[tf], tf, folder.name)
+        validate_timeframe(result[tf], tf, folder.name,
+                           allow_gaps=(allow_15m_gaps and tf == "15m"))
     return result
