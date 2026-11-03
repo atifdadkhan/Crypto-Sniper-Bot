@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       days:
-        description: "Historical days to fetch"
+        description: "Historical days to fetch if no prior dataset artifact is available"
         required: true
         default: "365"
       min_history_days:
@@ -19,11 +19,14 @@ on:
         description: "Funding sensitivity assumption (bps per 8h; not historical funding)"
         required: true
         default: "0"
+  pull_request:
+    branches: ["main"]
   push:
     branches: ["main"]
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   fetch-and-test:
@@ -43,12 +46,27 @@ jobs:
       - name: Run deterministic tests
         run: python -m pytest -q
 
-      - name: Download BTC and ETH independently by timeframe
+      - name: Reuse previously downloaded BTC ETH dataset
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: at-trendhive-btc-eth-timeframe-backtest
+          run-id: 41714564038
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          path: .
+
+      - name: Download BTC and ETH if no reusable dataset exists
+        if: ${{ always() }}
         run: |
-          python -m backtesting.download_btc_eth_independent \
-            --days "${{ inputs.days || '365' }}" \
-            --min-history-days "${{ inputs.min_history_days || '120' }}" \
-            --out data
+          if [ ! -f data/timeframe_manifest.json ]; then
+            python -m backtesting.download_btc_eth_independent \
+              --days "${{ inputs.days || '365' }}" \
+              --min-history-days "${{ inputs.min_history_days || '120' }}" \
+              --out data
+          else
+            echo "Using the previously downloaded and validated BTC/ETH dataset."
+          fi
 
       - name: Backtest every valid BTC ETH timeframe independently
         run: |
