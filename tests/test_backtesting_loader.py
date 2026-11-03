@@ -205,3 +205,67 @@ def test_market_discovery_keeps_replacement_candidates_beyond_target_count():
     candidates = discover_usdt_swaps(FakeExchange(), 500_000, 2)
     assert len(candidates) == 4
     assert [item[0] for item in candidates[:2]] == ["BTC/USDT:USDT", "ETH/USDT:USDT"]
+
+
+
+def test_historical_ohlcv_uses_bounded_200_candle_windows_and_collects_all_pages():
+    from backtesting.download_bitget import fetch_historical_ohlcv
+
+    step = 900_000
+    start = 1760000400000
+    total = 401
+
+    class FakeExchange:
+        rateLimit = 0
+        def __init__(self):
+            self.calls = []
+        def market(self, symbol):
+            return {"id": "BTCUSDT"}
+        def parse_timeframe(self, timeframe):
+            return 900
+        def publicMixGetV2MixMarketHistoryCandles(self, params):
+            self.calls.append(dict(params))
+            left, right = int(params["startTime"]), int(params["endTime"])
+            assert int(params["limit"]) == 200
+            assert right - left + 1 <= 90 * 86_400_000
+            rows = []
+            for ts in range(left, right + 1, step):
+                if start <= ts < start + total * step:
+                    rows.append([str(ts), "100", "102", "99", "101", "10", "1010"])
+            return {"data": rows}
+
+    exchange = FakeExchange()
+    out = fetch_historical_ohlcv(
+        exchange, "BTC/USDT:USDT", "15m", start, start + total * step
+    )
+    assert len(out) == total
+    assert len(exchange.calls) == 3
+    assert int(exchange.calls[0]["startTime"]) == start
+    assert int(exchange.calls[-1]["endTime"]) == start + total * step - 1
+
+
+def test_historical_ohlcv_retries_transient_history_api_failure():
+    from backtesting.download_bitget import fetch_historical_ohlcv
+
+    start = 1760000400000
+
+    class FakeExchange:
+        rateLimit = 0
+        def __init__(self):
+            self.calls = 0
+        def market(self, symbol):
+            return {"id": "BTCUSDT"}
+        def parse_timeframe(self, timeframe):
+            return 900
+        def publicMixGetV2MixMarketHistoryCandles(self, params):
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("temporary rate limit")
+            return {"data": [[str(start), "100", "102", "99", "101", "10", "1010"]]}
+
+    exchange = FakeExchange()
+    out = fetch_historical_ohlcv(
+        exchange, "BTC/USDT:USDT", "15m", start, start + 900000
+    )
+    assert exchange.calls == 2
+    assert len(out) == 1
