@@ -349,3 +349,17 @@ def test_historical_ohlcv_overlaps_page_edges_to_recover_dropped_boundary_candle
     assert timestamps == list(range(start, start + total * step, step))
     assert exchange.calls == 3
 
+
+
+
+@pytest.mark.parametrize(
+    ("timeframe", "step", "start"),
+    [
+        ("30m", 1_800_000, 1_760_000_400_000),
+        ("2h", 7_200_000, 1_760_000_400_000),
+    ],
+)
+def test_timeframe_validation_supports_all_manifest_timeframes(timeframe, step, start):
+    frame = _frame(n=100, start=start, step=step)
+    out = normalise_ohlcv(frame)
+    validate_timeframe(out, timeframe, "TESTUSDT")
