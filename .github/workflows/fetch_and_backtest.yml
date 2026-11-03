@@ -1,14 +1,22 @@
-name: Fetch BTC ETH Bitget Data and Timeframe Backtest
+name: Bitget Perpetual Research and Backtest
 
 on:
   workflow_dispatch:
     inputs:
+      research_scope:
+        description: "Research universe"
+        required: true
+        type: choice
+        options:
+          - btc_eth
+          - all_markets
+        default: btc_eth
       days:
-        description: "Historical days to fetch"
+        description: "Requested historical lookback days (maximum 2000)"
         required: true
         default: "365"
       min_history_days:
-        description: "Minimum acceptable history for each timeframe"
+        description: "Minimum acceptable history days per market/timeframe"
         required: true
         default: "120"
       fee_slippage_pct:
@@ -16,19 +24,22 @@ on:
         required: true
         default: "0.12"
       funding_bps_per_8h:
-        description: "Funding sensitivity assumption (bps per 8h; not historical funding)"
+        description: "Legacy BTC/ETH funding sensitivity assumption (not historical funding)"
         required: true
         default: "0"
+  pull_request:
+    branches: ["main"]
   push:
     branches: ["main"]
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
-  fetch-and-test:
+  research:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
 
@@ -43,21 +54,51 @@ jobs:
       - name: Run deterministic tests
         run: python -m pytest -q
 
-      - name: Download BTC and ETH independently by timeframe
+      - name: Reuse previously downloaded BTC ETH dataset
+        if: ${{ inputs.research_scope != 'all_markets' }}
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: at-trendhive-btc-eth-timeframe-backtest
+          run-id: 41714564038
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          path: .
+
+      - name: Download BTC ETH if no reusable dataset exists
+        if: ${{ inputs.research_scope != 'all_markets' }}
         run: |
-          python -m backtesting.download_btc_eth_independent \
+          if [ ! -f data/timeframe_manifest.json ]; then
+            python -m backtesting.download_btc_eth_independent \
+              --days "${{ inputs.days || '365' }}" \
+              --min-history-days "${{ inputs.min_history_days || '120' }}" \
+              --out data
+          else
+            echo "Using the previously downloaded and validated BTC/ETH dataset."
+          fi
+
+      - name: Discover and download every eligible Bitget USDT perpetual crypto market
+        if: ${{ inputs.research_scope == 'all_markets' }}
+        run: |
+          python -m backtesting.download_bitget \
+            --symbols auto \
             --days "${{ inputs.days || '365' }}" \
             --min-history-days "${{ inputs.min_history_days || '120' }}" \
+            --min-quote-volume 500000 \
+            --absolute-min-quote-volume 250000 \
+            --max-symbols 0 \
             --out data
 
-      - name: Backtest every valid BTC ETH timeframe independently
+      - name: Backtest BTC ETH timeframe baselines
+        if: ${{ inputs.research_scope != 'all_markets' }}
         run: |
           python -m backtesting.backtest_btc_eth_timeframes \
             --data-dir data \
             --fee-slippage-pct "${{ inputs.fee_slippage_pct || '0.12' }}" \
             --funding-bps-per-8h "${{ inputs.funding_bps_per_8h || '0' }}"
 
-      - name: Backtest the actual live multi-timeframe signal strategy
+      - name: Backtest current BTC ETH Telegram signal strategy
+        if: ${{ inputs.research_scope != 'all_markets' }}
         run: |
           python -m backtesting.backtest \
             --data-dir data \
@@ -66,12 +107,28 @@ jobs:
             --funding-bps-per-8h "${{ inputs.funding_bps_per_8h || '0' }}" \
             --max-hold-bars 96
 
-      - name: Upload BTC ETH timeframe data and reports
+      - name: Backtest five preserved engines on BTC ETH
+        if: ${{ inputs.research_scope != 'all_markets' }}
+        run: |
+          python -m backtesting.multi_strategy \
+            --data-dir data \
+            --fee-slippage-pct "${{ inputs.fee_slippage_pct || '0.12' }}"
+
+      - name: Backtest preserved engines across all downloaded markets and timeframes
+        if: ${{ inputs.research_scope == 'all_markets' }}
+        run: |
+          python -m backtesting.full_market_runner \
+            --data-dir data \
+            --fee-slippage-pct "${{ inputs.fee_slippage_pct || '0.12' }}" \
+            --minimum-trades 30
+
+      - name: Upload research data and reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: at-trendhive-btc-eth-timeframe-backtest
+          name: at-trendhive-${{ inputs.research_scope || 'btc_eth' }}-research
           path: |
             data/
             backtest_results/
           if-no-files-found: warn
+          retention-days: 90

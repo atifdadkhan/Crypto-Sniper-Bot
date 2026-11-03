@@ -39,3 +39,15 @@ See [BACKTESTING_GUIDE.md](BACKTESTING_GUIDE.md) for automatic Bitget public can
 ## Full-market historical backtesting
 
 See [BACKTESTING_GUIDE.md](BACKTESTING_GUIDE.md). GitHub Actions can dynamically discover eligible Bitget USDT perpetual markets, download their public OHLCV history, and backtest all complete datasets. BTC/ETH are macro filters, not the only tested coins.
+
+
+## Institutional Quant Research Lab
+
+The repository now includes a preserved strategy catalog and a full-market research runner:
+- [Research protocol](research/RESEARCH_LAB.md)
+- [Strategy catalog](research/strategy_catalog.json)
+- `python -m backtesting.full_market_runner --data-dir data`
+
+To run the all-market workflow after these changes are merged into `main`, open **Actions → Bitget Perpetual Research and Backtest → Run workflow**, select `all_markets`, and choose the requested history window. It discovers active eligible crypto USDT perpetuals (not spot), downloads public OHLCV, and backtests the five preserved engines. The default 365-day request is subject to each contract's actual listing history and API coverage.
+
+The first full-market stage does not yet apply historical funding to simulated trades. It explicitly reports that limitation; funding-aware carry engines remain gated until timestamped historical funding data is collected. GitHub Actions artifacts are temporary (90-day retention), not permanent archival storage. Do not use an in-sample leaderboard as a live-signal approval.
