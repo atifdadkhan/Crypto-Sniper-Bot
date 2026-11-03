@@ -87,6 +87,9 @@ def download_one(exchange, symbol: str, timeframe: str, days: int, out_dir: Path
     # naturally have shorter history, but a partial response for an older market fails.
     expected_start = pd.Timestamp(since, unit="ms", tz="UTC")
     actual_start = frame.timestamp.iloc[0]
+    actual_last_close = frame.timestamp.iloc[-1] + pd.to_timedelta(step, unit="ms")
+    if pd.Timestamp(now_ms, unit="ms", tz="UTC") - actual_last_close > pd.to_timedelta(step * 2, unit="ms"):
+        raise RuntimeError(f"DATA INSUFFICIENT: latest {timeframe} candle is stale for {symbol}: {actual_last_close}")
     if actual_start > expected_start + pd.Timedelta(days=2):
         market_created = exchange.market(symbol).get("created")
         if market_created is None:
