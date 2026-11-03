@@ -30,7 +30,7 @@ def test_max_hold_counts_entry_bar_as_first_held_bar():
 
 def test_max_hold_two_includes_exactly_two_bars():
     signal = SimpleNamespace(
-        symbol="BTCUSDT", side="LONG", stop_loss=90.0,
+        symbol="BTCUSDT", side="LONG", stop_loss=98.0,
         score=7, setup="Pullback", timestamp="2026-01-01T00:15:00+00:00",
     )
     bars = _bars()
