@@ -6,12 +6,12 @@ This module is **signals/backtesting only**. It uses Bitget public market-data e
 
 GitHub Actions → **Fetch FULL Bitget Market and Backtest** → Run workflow.
 
-- `days`: requested history, 30–2000 days.
+- `days`: requested history, 30–2000 days (default 365).
 - `min_quote_volume`: 24-hour quote-volume floor in USDT; default `500000`.
 - `max_symbols`: `0` means all eligible markets.
 - Discovers currently active linear USDT-settled perpetual markets. BTC and ETH are retained as macro benchmarks.
 - Common tokenised equity, index and commodity bases are excluded by a denylist. This is a practical filter, not a complete asset-class classification service.
-- Downloads closed 15m, 1h, 4h and 1d candles through paginated public OHLCV requests.
+- Downloads closed 15m, 1h, 4h and 1d candles through Bitget historical-candles API windows (maximum 200 candles and 90 days per request), with exact timestamp pagination. The workflow defaults to 365 days.
 - Each timeframe must have UTC-aligned, strictly continuous candle-open timestamps. Missing bars, malformed OHLCV, and misaligned timestamps cause the dataset to be rejected as **DATA INSUFFICIENT**.
 - Newly listed markets may have less than the requested lookback. The manifest records per-timeframe first/last candle and candle count.
 - A symbol is backtested only when all four timeframe files validate. Inspect `data/download_manifest.json` and `backtest_results/report.md`.
