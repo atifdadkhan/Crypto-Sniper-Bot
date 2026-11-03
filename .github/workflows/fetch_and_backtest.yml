@@ -19,6 +19,8 @@ on:
         description: "Funding sensitivity assumption (bps per 8h; not historical funding)"
         required: true
         default: "0"
+  push:
+    branches: ["main"]
 
 permissions:
   contents: read
@@ -26,7 +28,7 @@ permissions:
 jobs:
   fetch-and-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
 
@@ -39,21 +41,21 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run deterministic tests
-        run: pytest -q
+        run: python -m pytest -q
 
       - name: Download BTC and ETH independently by timeframe
         run: |
           python -m backtesting.download_btc_eth_independent \
-            --days "${{ inputs.days }}" \
-            --min-history-days "${{ inputs.min_history_days }}" \
+            --days "${{ inputs.days || '365' }}" \
+            --min-history-days "${{ inputs.min_history_days || '120' }}" \
             --out data
 
       - name: Backtest every valid BTC ETH timeframe independently
         run: |
           python -m backtesting.backtest_btc_eth_timeframes \
             --data-dir data \
-            --fee-slippage-pct "${{ inputs.fee_slippage_pct }}" \
-            --funding-bps-per-8h "${{ inputs.funding_bps_per_8h }}"
+            --fee-slippage-pct "${{ inputs.fee_slippage_pct || '0.12' }}" \
+            --funding-bps-per-8h "${{ inputs.funding_bps_per_8h || '0' }}"
 
       - name: Upload BTC ETH timeframe data and reports
         if: always()
