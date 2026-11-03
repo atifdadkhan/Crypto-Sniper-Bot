@@ -301,13 +301,13 @@ def test_discovery_prefers_bitget_usdt_turnover_and_uses_absolute_floor():
 
 
 def test_history_fallback_tiers_are_descending_and_respect_minimum():
-    assert history_fallback_tiers(365, 90) == [365, 180, 90]
-    assert history_fallback_tiers(240, 75) == [240, 180, 90, 75]
-    assert history_fallback_tiers(60, 30) == [60, 30]
+    assert history_fallback_tiers(365, 120) == [365, 180, 120]
+    assert history_fallback_tiers(240, 120) == [240, 180, 120]
+    assert history_fallback_tiers(120, 120) == [120]
 
 
 def test_history_fallback_tiers_reject_invalid_ranges():
     with pytest.raises(ValueError):
-        history_fallback_tiers(30, 60)
+        history_fallback_tiers(120, 180)
     with pytest.raises(ValueError):
-        history_fallback_tiers(20, 10)
+        history_fallback_tiers(119, 90)
