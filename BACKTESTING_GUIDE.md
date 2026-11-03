@@ -1,49 +1,53 @@
-# A&T TrendHive — Full-Market Historical Data & Backtesting
+# A&T TrendHive — Historical Data & Backtesting
 
-This module is **signals/backtesting only**. It uses Bitget public market-data endpoints and never places orders or needs API credentials.
+This module is **signals/backtesting only**. It uses Bitget public market-data endpoints and never places, amends, cancels, or closes orders. No private exchange API credentials are required.
 
-## Full-market mode (recommended)
+## Full-market download and backtest
 
 GitHub Actions → **Fetch FULL Bitget Market and Backtest** → Run workflow.
 
-- `days`: historical lookback, 30–2000 days. Longer periods require more API requests and storage.
-- `min_quote_volume`: minimum 24-hour quote volume per USDT perpetual market. Default `500000` USDT filters thin/illiquid contracts. BTC and ETH are always downloaded as macro benchmarks.
-- `max_symbols`: `0` means every eligible market; use a positive cap only for a smaller test run.
-- The workflow discovers active linear USDT perpetual swaps from Bitget at run time. No fixed BTC/ETH-only symbol list is used.
-- For every discovered market, it downloads closed 15m, 1h, 4h and 1d candles, paginating public OHLCV requests and respecting the exchange rate limit.
-- A market is included in backtesting only when its four timeframe files are complete and pass validation. Failed/partial downloads are listed in `data/download_manifest.json` rather than silently treated as valid data.
-- BTC and ETH datasets are used as the strategy's macro-direction filters, and all complete downloaded symbol folders (including BTC and ETH) are backtested.
-- The artifact contains the data, download manifest, per-symbol report, combined trades CSV and summary JSON.
+- `days`: requested history, 30–2000 days.
+- `min_quote_volume`: 24-hour quote-volume floor in USDT; default `500000`.
+- `max_symbols`: `0` means all eligible markets.
+- Discovers currently active linear USDT-settled perpetual markets. BTC and ETH are retained as macro benchmarks.
+- Common tokenised equity, index and commodity bases are excluded by a denylist. This is a practical filter, not a complete asset-class classification service.
+- Downloads closed 15m, 1h, 4h and 1d candles through paginated public OHLCV requests.
+- Each timeframe must have UTC-aligned, strictly continuous candle-open timestamps. Missing bars, malformed OHLCV, and misaligned timestamps cause the dataset to be rejected as **DATA INSUFFICIENT**.
+- Newly listed markets may have less than the requested lookback. The manifest records per-timeframe first/last candle and candle count.
+- A symbol is backtested only when all four timeframe files validate. Inspect `data/download_manifest.json` and `backtest_results/report.md`.
 
-CLI examples:
+CLI:
 
 ```bash
-# Discover and download all eligible markets (default liquidity floor)
 python -m backtesting.download_bitget --symbols auto --days 365 --min-quote-volume 500000 --max-symbols 0 --out data
 
-# Test every complete downloaded market; BTC/ETH remain macro benchmarks
-python -m backtesting.backtest --data-dir data --symbols auto --fee-slippage-pct 0.12
+python -m backtesting.backtest --data-dir data --symbols auto --fee-slippage-pct 0.12 --funding-bps-per-8h 0
 ```
 
-To include lower-liquidity contracts, lower `--min-quote-volume`; this can dramatically increase the number of symbols, API calls, gaps and unreliable results. `--max-symbols 0` means no symbol cap. This is the currently listed eligible market universe, not a point-in-time historical listing database; delisted contracts and historical survivorship bias may therefore be absent.
+`--fee-slippage-pct` is the estimated combined round-trip fee plus slippage, expressed as a percentage of traded notional. It is converted to R using the trade's entry-to-stop risk.
 
-## Manual CSV / Excel data
+`--funding-bps-per-8h` is an optional funding-cost sensitivity assumption. It is **not actual historical Bitget funding data**. Zero means funding is omitted; test several plausible positive and negative assumptions separately. The default must not be interpreted as funding-neutral proof.
 
-Place each symbol's files in its own folder, e.g. `data/SOLUSDT/15m.csv`, `1h.csv`, `4h.csv`, `1d.csv`. The BTCUSDT and ETHUSDT benchmark folders are also required. Each file needs timestamp, open, high, low, close and optionally volume. Excel `.xlsx` and `.xls` files are supported by the loader, but the automated folder-discovery backtest currently expects CSV names for reliable auto-discovery.
+## Execution assumptions
 
-Then run the **Historical Backtest** GitHub Actions workflow with `symbols=auto`, or explicitly list symbols.
+- Strategy rules use completed candles only; a signal is evaluated after the 15m candle closes.
+- Entry is modeled at the next 15m candle open. Historical live quotes are unavailable, so the completed signal close is the live-price proxy during signal qualification.
+- A next-bar opening price already beyond the stop invalidates the trade.
+- A stop crossed by an opening gap is filled at the worse opening price, not the stop trigger.
+- If stop and target are both touched in one OHLC candle, stop is assumed first.
+- TP1 realizes 50% at 1.5R; the remaining 50% targets 2.5R. No break-even stop is assumed after TP1.
+- Fees/slippage and funding are estimates; market impact, liquidity-dependent fills, partial fills, exact fee tiers and historical funding-rate series are not modeled.
+- The simulator is a simplified OHLC model. It cannot know the true intrabar path or queue position.
 
-## Interpretation and limitations
+## Validation and limitations
 
-- This is a historical simulation, not a profit guarantee or proof of future win rate.
-- It uses the existing signal rules and closed candles; entries are modeled at the next 15m candle open.
-- Historical live quote is unavailable, so the completed 15m close is used as a proxy during signal qualification.
-- Stop is assumed to occur first when stop and target are both touched within one candle (conservative OHLC assumption).
-- Fees and slippage are an estimate controlled by `fee_slippage_pct`; funding payments, market impact, partial fills and exact exchange fee tiers are not modeled.
-- The market universe is discovered at download time. This does not reconstruct which contracts were listed at every historical date, so survivorship bias is possible.
-- Check `download_manifest.json` and each symbol's candle coverage before relying on any result. Missing/gappy data should be treated as DATA INSUFFICIENT.
-- Validate out-of-sample and paper-trade results before risking capital.
+- Run deterministic unit tests with `pytest -q`. Tests validate OHLCV normalization, timestamp continuity, stop gaps and cost conversion; they do not establish strategy profitability.
+- Current active-market discovery is not a point-in-time historical listing database. Delisted contracts and historical universe membership may be absent (survivorship bias).
+- Common non-crypto contracts are excluded by a base-symbol denylist, which cannot guarantee perfect classification of every newly listed token.
+- Do not interpret a high score as a probability of winning.
+- Use out-of-sample / walk-forward periods, realistic cost and funding sensitivity, and paper trading before considering any live decision.
+- Treat incomplete, stale, malformed or gappy data as **DATA INSUFFICIENT**, never as a losing or winning trade.
 
-## Live Telegram scanner universe
+## Live Telegram scanner
 
-The live scanner discovers active linear USDT perpetual contracts from Bitget and refreshes the liquid-pair list on each scan. Set Render `TOP_N=0` to scan every pair meeting `MIN_QUOTE_VOLUME`; a positive `TOP_N` limits scanning to the highest-volume N pairs. Default `MIN_QUOTE_VOLUME=500000` filters very thin markets. `TOP_N=0` can mean hundreds of symbols and more API requests; keep concurrency/rate limits enabled and monitor exchange throttling.
+The live scanner remains separate from this historical simulator. It provides LONG/SHORT analysis only and does not submit broker/exchange orders. Changes in this backtesting branch do not alter `main.py`, the Telegram signal logic, or Render deployment configuration.

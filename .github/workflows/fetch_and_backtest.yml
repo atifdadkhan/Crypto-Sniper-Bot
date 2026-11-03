@@ -1,4 +1,3 @@
-
 name: Fetch FULL Bitget Market and Backtest
 
 on:
@@ -17,9 +16,13 @@ on:
         required: true
         default: "0"
       fee_slippage_pct:
-        description: "Estimated fees + slippage percent"
+        description: "Estimated combined round-trip fees + slippage (% notional)"
         required: true
         default: "0.12"
+      funding_bps_per_8h:
+        description: "Funding sensitivity assumption (bps per 8h; not historical funding)"
+        required: true
+        default: "0"
 
 permissions:
   contents: read
@@ -40,7 +43,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Discover and download all eligible Bitget USDT perpetual markets
+      - name: Run deterministic tests
+        run: pytest -q
+
+      - name: Discover and download eligible Bitget USDT perpetual markets
         run: |
           python -m backtesting.download_bitget --symbols auto \
             --days "${{ inputs.days }}" \
@@ -50,7 +56,8 @@ jobs:
       - name: Backtest every complete downloaded market
         run: |
           python -m backtesting.backtest --data-dir data --symbols auto \
-            --fee-slippage-pct "${{ inputs.fee_slippage_pct }}"
+            --fee-slippage-pct "${{ inputs.fee_slippage_pct }}" \
+            --funding-bps-per-8h "${{ inputs.funding_bps_per_8h }}"
 
       - name: Upload historical data and report
         if: always()
