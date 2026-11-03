@@ -42,7 +42,8 @@ def test_benchmark_alignment_uses_completed_candle_time_and_rejects_stale():
     assert benchmark_trend_at(prepared, last_close, 900_000) in {
         "BULLISH", "BEARISH", "NEUTRAL"
     }
-    assert benchmark_trend_at(prepared, last_close + 1_800_000, 900_000) is None
+    assert benchmark_trend_at(prepared, last_close + 1, 0) is None
+    assert benchmark_trend_at(prepared, last_close + 900_000, 0) is None
 
 
 def test_short_benchmark_history_is_not_silently_used():
