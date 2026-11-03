@@ -97,7 +97,7 @@ def recover_missing_candles(exchange, symbol, timeframe, frame, step_ms, max_att
         extra = pd.DataFrame(additions, columns=["timestamp", "open", "high", "low", "close", "volume"])
         extra["timestamp"] = pd.to_datetime(extra["timestamp"], unit="ms", utc=True)
         frame = pd.concat([frame, extra], ignore_index=True)
-        frame = normalise_ohlcv(frame)
+        frame = normalise_ohlcv(frame, min_candles=1)
     return frame
 
 
