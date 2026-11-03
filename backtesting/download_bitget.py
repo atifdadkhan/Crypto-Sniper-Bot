@@ -5,21 +5,36 @@ import time
 from pathlib import Path
 
 import ccxt
+import numpy as np
 import pandas as pd
 
 from backtesting.data_loader import normalise_ohlcv, validate_timeframe
 
 TIMEFRAMES = ("15m", "1h", "4h", "1d")
-# Common tokenised equities, indices and commodities are deliberately excluded.
+# Bitget lists some tokenised equities, indices and commodities as linear swaps.
+# This denylist is intentionally conservative and must be maintained as listings change.
 NON_CRYPTO_BASES = {
-    "AAPL", "AMZN", "GOOGL", "GOOG", "META", "MSFT", "NVDA", "TSLA",
-    "COIN", "MSTR", "NFLX", "QQQ", "SPY", "IWM", "DIA", "XAU", "XAG",
-    "GOLD", "SILVER", "PAXG", "XAUT", "WTI", "BRENT", "OIL",
+    "AAPL", "AMZN", "GOOGL", "GOOG", "META", "MSFT", "NVDA", "TSLA", "TSL",
+    "COIN", "MSTR", "NFLX", "QQQ", "SPY", "IWM", "DIA", "SOXL", "SOXS",
+    "SNDK", "SKHY", "SKHYNIX", "SNXX", "MU", "INTC", "AMD", "AVGO", "ORCL",
+    "CRM", "PLTR", "BABA", "JD", "PDD", "NIO", "TSM", "ARM", "SMCI",
+    "XAU", "XAG", "GOLD", "SILVER", "PAXG", "XAUT", "WTI", "BRENT", "OIL",
+    "CL", "BZ", "HG", "NG", "COPPER", "NATGAS", "USOIL", "UKOIL",
+    "SPX", "NDX", "DJI", "US30", "US100", "US500", "DXY", "EUR", "JPY",
+    "KORU", "SPCX",
 }
 
 
+def is_excluded_non_crypto_base(base):
+    """Heuristic exclusion for known tokenised non-crypto underlyings."""
+    value = str(base or "").strip().upper()
+    if not value:
+        return True
+    return value in NON_CRYPTO_BASES
+
+
 def discover_usdt_swaps(exchange, min_quote_volume=500_000.0, max_symbols=0):
-    """Discover active linear USDT-settled crypto swaps meeting a volume floor."""
+    """Discover active linear USDT-settled swaps, excluding known non-crypto underlyings."""
     markets = exchange.load_markets()
     tickers = exchange.fetch_tickers()
     selected = []
@@ -31,7 +46,7 @@ def discover_usdt_swaps(exchange, min_quote_volume=500_000.0, max_symbols=0):
         if market.get("quote") != "USDT" or market.get("settle") not in (None, "USDT"):
             continue
         base = str(market.get("base") or "").upper()
-        if not base or base in NON_CRYPTO_BASES:
+        if is_excluded_non_crypto_base(base):
             continue
         ticker = tickers.get(symbol) or {}
         quote_volume = ticker.get("quoteVolume")
@@ -51,6 +66,39 @@ def discover_usdt_swaps(exchange, min_quote_volume=500_000.0, max_symbols=0):
         others = [x for x in selected if not x[2]]
         selected = (benchmarks + others)[:max_symbols]
     return selected
+
+
+def recover_missing_candles(exchange, symbol, timeframe, frame, step_ms, max_attempts=2):
+    """Re-request exact missing candle opens; never synthesize or forward-fill OHLCV."""
+    frame = frame.drop_duplicates("timestamp", keep="last").sort_values("timestamp").reset_index(drop=True)
+    for _ in range(max_attempts):
+        values = pd.DatetimeIndex(frame["timestamp"]).asi8 // 1_000_000
+        if len(values) < 2:
+            break
+        missing = []
+        for left, right in zip(values[:-1], values[1:]):
+            if right - left > step_ms:
+                missing.extend(range(int(left + step_ms), int(right), int(step_ms)))
+        if not missing:
+            return frame
+        additions = []
+        for timestamp_ms in missing:
+            try:
+                batch = exchange.fetch_ohlcv(
+                    symbol, timeframe=timeframe, since=timestamp_ms, limit=10
+                )
+            except Exception as exc:
+                print(f"Gap retry failed for {symbol} {timeframe} at {timestamp_ms}: {exc}")
+                continue
+            additions.extend(row for row in (batch or []) if int(row[0]) == timestamp_ms)
+            time.sleep(max(float(getattr(exchange, "rateLimit", 100)), 100.0) / 1000.0)
+        if not additions:
+            break
+        extra = pd.DataFrame(additions, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        extra["timestamp"] = pd.to_datetime(extra["timestamp"], unit="ms", utc=True)
+        frame = pd.concat([frame, extra], ignore_index=True)
+        frame = normalise_ohlcv(frame, min_candles=1)
+    return frame
 
 
 def download_one(exchange, symbol: str, timeframe: str, days: int, out_dir: Path):
@@ -82,9 +130,12 @@ def download_one(exchange, symbol: str, timeframe: str, days: int, out_dir: Path
     frame["timestamp"] = pd.to_datetime(frame["timestamp"], unit="ms", utc=True)
     frame = frame[frame["timestamp"] + pd.to_timedelta(step, unit="ms") <= pd.Timestamp(now_ms, unit="ms", tz="UTC")]
     frame = normalise_ohlcv(frame)
+    before = len(frame)
+    frame = recover_missing_candles(exchange, symbol, timeframe, frame, step)
+    if len(frame) > before:
+        print(f"Recovered {len(frame) - before} missing {timeframe} candle(s) for {symbol}")
     validate_timeframe(frame, timeframe, symbol)
-    # Ensure the downloaded history begins close to the requested start. New listings
-    # naturally have shorter history, but a partial response for an older market fails.
+
     expected_start = pd.Timestamp(since, unit="ms", tz="UTC")
     actual_start = frame.timestamp.iloc[0]
     actual_last_close = frame.timestamp.iloc[-1] + pd.to_timedelta(step, unit="ms")
@@ -132,7 +183,9 @@ def main():
         "days_requested": args.days, "timeframes": list(TIMEFRAMES),
         "min_24h_quote_volume_usdt": args.min_quote_volume, "max_symbols": args.max_symbols,
         "universe_note": "Current active market universe; not point-in-time historical listings. "
-                         "Common tokenised equities, indices and commodities are excluded by base-symbol denylist.",
+                         "Known tokenised equities, indices and commodities are excluded using a maintained "
+                         "base-symbol denylist. This is a heuristic, not a guarantee that every underlying is crypto.",
+        "non_crypto_filter": "heuristic_base_symbol_denylist",
         "downloaded": [], "failed": [],
     }
     try:
