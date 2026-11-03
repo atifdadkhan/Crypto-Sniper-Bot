@@ -27,7 +27,7 @@ def test_entry_gap_beyond_stop_skips_trade():
 
 def test_stop_gap_fills_at_worse_open():
     bars = _bars([
-        {"open": 100.0, "high": 101.0, "low": 97.0, "close": 98.0},
+        {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0},
         {"open": 96.0, "high": 97.0, "low": 95.0, "close": 96.0},
     ])
     trade = simulate(_signal(), bars, 0, fee_slippage_pct=0, max_hold=1)
