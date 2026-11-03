@@ -13,6 +13,18 @@ import pandas as pd
 from backtesting.data_loader import normalise_ohlcv, validate_timeframe
 
 TIMEFRAMES = ("15m", "1h", "4h", "1d")
+
+
+def history_fallback_tiers(requested_days, minimum_days):
+    """Return descending, explicit lookback tiers without ever crossing the minimum."""
+    if requested_days < 120 or minimum_days < 120 or minimum_days > requested_days:
+        raise ValueError("history days must satisfy 120 <= minimum_days <= requested_days (100 daily-bar warm-up plus coverage buffer)")
+    tiers = {int(requested_days), int(minimum_days)}
+    tiers.update(day for day in (365, 180, 120)
+                 if minimum_days <= day <= requested_days)
+    return sorted(tiers, reverse=True)
+
+
 # Bitget lists some tokenised equities, indices and commodities as linear swaps.
 # This denylist is intentionally conservative and must be maintained as listings change.
 NON_CRYPTO_BASES = {
@@ -35,7 +47,7 @@ def is_excluded_non_crypto_base(base):
     return value in NON_CRYPTO_BASES
 
 
-def discover_usdt_swaps(exchange, min_quote_volume=500_000.0, max_symbols=0):
+def discover_usdt_swaps(exchange, min_quote_volume=500_000.0, max_symbols=0, absolute_min_quote_volume=None):
     """Discover active linear USDT-settled swaps, excluding known non-crypto underlyings."""
     markets = exchange.load_markets()
     tickers = exchange.fetch_tickers()
@@ -51,7 +63,13 @@ def discover_usdt_swaps(exchange, min_quote_volume=500_000.0, max_symbols=0):
         if is_excluded_non_crypto_base(base):
             continue
         ticker = tickers.get(symbol) or {}
-        quote_volume = ticker.get("quoteVolume")
+        # Prefer Bitget's explicit USDT turnover field for USDT-settled swaps.
+        quote_volume = ticker.get("usdtVolume")
+        if quote_volume is None:
+            info = ticker.get("info") or {}
+            quote_volume = info.get("usdtVolume") if isinstance(info, dict) else None
+        if quote_volume is None:
+            quote_volume = ticker.get("quoteVolume")
         if quote_volume is None:
             base_volume, last = ticker.get("baseVolume"), ticker.get("last")
             quote_volume = (base_volume * last) if base_volume and last else 0
@@ -60,7 +78,8 @@ def discover_usdt_swaps(exchange, min_quote_volume=500_000.0, max_symbols=0):
         except (TypeError, ValueError):
             quote_volume = 0.0
         benchmark = base in {"BTC", "ETH"}
-        if benchmark or quote_volume >= min_quote_volume:
+        hard_floor = min_quote_volume if absolute_min_quote_volume is None else absolute_min_quote_volume
+        if benchmark or quote_volume >= hard_floor:
             selected.append((symbol, quote_volume, benchmark))
     selected.sort(key=lambda x: (not x[2], -x[1], x[0]))
     # Keep all ranked candidates. The target count is enforced only after each
@@ -271,14 +290,25 @@ def main():
     parser.add_argument("--symbols", default="auto", help="auto or comma-separated CCXT symbols")
     parser.add_argument("--days", type=int, default=365)
     parser.add_argument("--out", default="data")
-    parser.add_argument("--min-quote-volume", type=float, default=500_000)
+    parser.add_argument("--min-quote-volume", type=float, default=500_000,
+                        help="Preferred 24h USDT turnover; higher-turnover markets rank first")
+    parser.add_argument("--absolute-min-quote-volume", type=float, default=250_000,
+                        help="Hard USDT turnover floor; never relaxed below this")
+    parser.add_argument("--min-history-days", type=int, default=120,
+                        help="Minimum acceptable per-market history when requested lookback is unavailable")
     parser.add_argument("--max-symbols", type=int, default=20,
                         help="Target fully eligible markets; 0 means all eligible markets")
     args = parser.parse_args()
-    if not 30 <= args.days <= 2000:
-        parser.error("--days must be between 30 and 2000")
-    if args.min_quote_volume < 0 or args.max_symbols < 0:
-        parser.error("volume floor and max symbols cannot be negative")
+    if not 120 <= args.days <= 2000:
+        parser.error("--days must be between 120 and 2000; the strategy requires 100 daily candles plus a coverage buffer")
+    if (args.min_quote_volume < 0 or args.absolute_min_quote_volume < 0
+            or args.absolute_min_quote_volume > args.min_quote_volume or args.max_symbols < 0):
+        parser.error("volume floors must be non-negative, absolute floor <= preferred floor, and max symbols >= 0")
+    if args.min_history_days < 120:
+        parser.error("--min-history-days must be >= 120 for the strategy daily-timeframe warm-up")
+    if args.min_history_days > args.days:
+        print(f"WARNING: min history {args.min_history_days}d exceeds requested {args.days}d; clamping minimum to {args.days}d")
+        args.min_history_days = args.days
 
     exchange = ccxt.bitget({"enableRateLimit": True, "timeout": 30000,
                             "options": {"defaultType": "swap"}})
@@ -286,10 +316,14 @@ def main():
     manifest = {
         "exchange": "Bitget", "market_type": "linear USDT-settled perpetual swaps",
         "days_requested": args.days, "timeframes": list(TIMEFRAMES),
-        "min_24h_quote_volume_usdt": args.min_quote_volume,
+        "preferred_24h_turnover_usdt": args.min_quote_volume,
+        "absolute_min_24h_turnover_usdt": args.absolute_min_quote_volume,
+        "requested_history_days": args.days,
+        "minimum_history_days": args.min_history_days,
         "eligible_symbols_target": args.max_symbols,
-        "selection_policy": "volume-ranked candidates; continue until target count has complete validated history",
-        "coverage_policy": "every timeframe must cover the full requested lookback; no listing-age exemption",
+        "selection_policy": "rank by Bitget USDT turnover; use lower-turnover candidates only down to the absolute floor",
+        "coverage_policy": "per-market history is reduced only through explicit tiers; no fabricated candles",
+        "comparison_warning": "Per-market lookback may differ; compare markets on matched date windows before cross-market conclusions.",
         "universe_note": "Current active market universe; not point-in-time historical listings. "
                          "Known tokenised equities, indices and commodities are excluded using a maintained "
                          "base-symbol denylist. This is a heuristic, not a guarantee that every underlying is crypto.",
@@ -298,7 +332,8 @@ def main():
     }
     try:
         if args.symbols.strip().lower() == "auto":
-            markets = discover_usdt_swaps(exchange, args.min_quote_volume, args.max_symbols)
+            markets = discover_usdt_swaps(exchange, args.min_quote_volume, args.max_symbols,
+                                           absolute_min_quote_volume=args.absolute_min_quote_volume)
             symbols = [x[0] for x in markets]
             manifest["discovered_markets"] = [
                 {"symbol": s, "quote_volume_24h_usdt": round(v, 2), "macro_benchmark": b}
@@ -319,28 +354,50 @@ def main():
                 f"Candidate [{idx}/{len(symbols)}] {symbol}; eligible "
                 f"{len(manifest['downloaded'])}/{args.max_symbols if args.max_symbols else 'ALL'}"
             )
-            result = {"symbol": symbol, "candles": {}}
-            try:
-                # Stage all timeframes and publish only after every timeframe validates.
-                with tempfile.TemporaryDirectory(prefix="bitget_symbol_", dir=out_dir) as tmp_dir:
-                    for tf in TIMEFRAMES:
-                        result["candles"][tf] = download_one(
-                            exchange, symbol, tf, args.days, Path(tmp_dir)
-                        )
-                    folder_name = str(
-                        exchange.market(symbol).get("base") or symbol.split("/")[0]
-                    ).upper() + "USDT"
-                    staged_folder = Path(tmp_dir) / folder_name
-                    destination = out_dir / folder_name
-                    if destination.exists():
-                        shutil.rmtree(destination)
-                    shutil.move(str(staged_folder), str(destination))
+            result = {"symbol": symbol, "candles": {}, "lookback_days": None}
+            tiers = history_fallback_tiers(args.days, args.min_history_days)
+            last_error = None
+            accepted = False
+            for lookback_days in tiers:
+                try:
+                    # Stage each tier independently; failed attempts never publish partial data.
+                    with tempfile.TemporaryDirectory(prefix="bitget_symbol_", dir=out_dir) as tmp_dir:
+                        tier_results = {}
+                        for tf in TIMEFRAMES:
+                            tier_results[tf] = download_one(
+                                exchange, symbol, tf, lookback_days, Path(tmp_dir)
+                            )
+                        folder_name = str(
+                            exchange.market(symbol).get("base") or symbol.split("/")[0]
+                        ).upper() + "USDT"
+                        staged_folder = Path(tmp_dir) / folder_name
+                        destination = out_dir / folder_name
+                        if destination.exists():
+                            shutil.rmtree(destination)
+                        shutil.move(str(staged_folder), str(destination))
+                    result["candles"] = tier_results
+                    result["lookback_days"] = lookback_days
+                    accepted = True
+                    if lookback_days < args.days:
+                        print(f"ADAPTIVE HISTORY: {symbol} accepted at {lookback_days}d (requested {args.days}d)")
+                    break
+                except Exception as exc:
+                    last_error = exc
+                    message = str(exc).lower()
+                    recoverable = (
+                        "data insufficient" in message or "timestamp gap" in message
+                        or "stale" in message or "requested coverage" in message
+                    )
+                    if not recoverable or lookback_days == tiers[-1]:
+                        break
+                    print(f"RETRY {symbol}: {lookback_days}d unavailable; trying next history tier")
+            if accepted:
                 manifest["downloaded"].append(result)
                 print(f"ELIGIBLE: {symbol} ({len(manifest['downloaded'])}/{args.max_symbols or 'ALL'})")
-            except Exception as exc:
-                result["error"] = f"{type(exc).__name__}: {exc}"
+            else:
+                result["error"] = f"{type(last_error).__name__}: {last_error}" if last_error else "No eligible history tier"
                 manifest["failed"].append(result)
-                print(f"SKIP INELIGIBLE MARKET: {symbol}: {exc}")
+                print(f"SKIP INELIGIBLE MARKET: {symbol}: {result['error']}")
         manifest["candidate_count"] = len(symbols)
         manifest["candidates_attempted"] = len(manifest["downloaded"]) + len(manifest["failed"])
         manifest["eligible_count"] = len(manifest["downloaded"])
@@ -352,9 +409,21 @@ def main():
         if not manifest["downloaded"]:
             raise RuntimeError("No complete datasets downloaded; inspect DATA INSUFFICIENT reasons in manifest.")
         if args.max_symbols > 0 and len(manifest["downloaded"]) < args.max_symbols:
+            print(
+                f"WARNING: only {len(manifest['downloaded'])}/{args.max_symbols} markets "
+                f"qualified above the {args.min_history_days}-day history and "
+                f"${args.absolute_min_quote_volume:,.0f} USDT turnover floors. "
+                "Proceeding with every validated market; no low-quality data was forced in."
+            )
+        downloaded_bases = {
+            str(exchange.market(item["symbol"]).get("base") or item["symbol"].split("/")[0]).upper()
+            for item in manifest["downloaded"]
+        }
+        if not {"BTC", "ETH"}.issubset(downloaded_bases):
             raise RuntimeError(
-                f"Only {len(manifest['downloaded'])}/{args.max_symbols} eligible markets had "
-                f"the full {args.days}-day history. See download_manifest.json for skipped markets."
+                "BTC and ETH benchmark datasets are mandatory for the current strategy; "
+                f"validated benchmarks: {sorted(downloaded_bases.intersection({'BTC', 'ETH'}))}. "
+                "Inspect download_manifest.json."
             )
     finally:
         close = getattr(exchange, "close", None)

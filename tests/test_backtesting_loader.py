@@ -5,7 +5,7 @@ import pytest
 from backtesting.data_loader import normalise_ohlcv, validate_timeframe
 from backtesting.download_bitget import (
     discover_usdt_swaps, is_excluded_non_crypto_base, recover_missing_candles,
-    validate_requested_coverage,
+    validate_requested_coverage, history_fallback_tiers,
 )
 
 
@@ -269,3 +269,45 @@ def test_historical_ohlcv_retries_transient_history_api_failure():
     )
     assert exchange.calls == 2
     assert len(out) == 1
+
+
+
+def test_discovery_prefers_bitget_usdt_turnover_and_uses_absolute_floor():
+    class FakeExchange:
+        def load_markets(self):
+            return {
+                f"{base}/USDT:USDT": {
+                    "active": True, "swap": True, "linear": True,
+                    "quote": "USDT", "settle": "USDT", "base": base,
+                }
+                for base in ("BTC", "SOL", "ADA", "DOGE")
+            }
+
+        def fetch_tickers(self):
+            return {
+                "BTC/USDT:USDT": {"usdtVolume": 10_000_000, "quoteVolume": 1},
+                "SOL/USDT:USDT": {"usdtVolume": 450_000, "quoteVolume": 900_000},
+                "ADA/USDT:USDT": {"info": {"usdtVolume": "150000"}, "quoteVolume": 2_000_000},
+                "DOGE/USDT:USDT": {"usdtVolume": 50_000, "quoteVolume": 2_000_000},
+            }
+
+    rows = discover_usdt_swaps(
+        FakeExchange(), min_quote_volume=500_000, absolute_min_quote_volume=100_000
+    )
+    volumes = {symbol: volume for symbol, volume, _ in rows}
+    assert volumes["SOL/USDT:USDT"] == 450_000
+    assert volumes["ADA/USDT:USDT"] == 150_000
+    assert "DOGE/USDT:USDT" not in volumes
+
+
+def test_history_fallback_tiers_are_descending_and_respect_minimum():
+    assert history_fallback_tiers(365, 120) == [365, 180, 120]
+    assert history_fallback_tiers(240, 120) == [240, 180, 120]
+    assert history_fallback_tiers(120, 120) == [120]
+
+
+def test_history_fallback_tiers_reject_invalid_ranges():
+    with pytest.raises(ValueError):
+        history_fallback_tiers(120, 180)
+    with pytest.raises(ValueError):
+        history_fallback_tiers(119, 90)

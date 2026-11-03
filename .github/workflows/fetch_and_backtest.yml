@@ -8,9 +8,17 @@ on:
         required: true
         default: "365"
       min_quote_volume:
-        description: "Minimum 24h quote volume in USDT"
+        description: "Preferred 24h USDT turnover; lower-turnover fallback is controlled by the absolute floor"
         required: true
         default: "500000"
+      absolute_min_quote_volume:
+        description: "Hard minimum 24h USDT turnover; never relaxed below this"
+        required: true
+        default: "250000"
+      min_history_days:
+        description: "Minimum acceptable history when requested lookback is unavailable"
+        required: true
+        default: "120"
       max_symbols:
         description: "Target fully eligible markets after history validation; 0 means ALL"
         required: true
@@ -51,6 +59,8 @@ jobs:
           python -m backtesting.download_bitget --symbols auto \
             --days "${{ inputs.days }}" \
             --min-quote-volume "${{ inputs.min_quote_volume }}" \
+            --absolute-min-quote-volume "${{ inputs.absolute_min_quote_volume }}" \
+            --min-history-days "${{ inputs.min_history_days }}" \
             --max-symbols "${{ inputs.max_symbols }}" --out data
 
       - name: Backtest every complete downloaded market
