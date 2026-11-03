@@ -82,7 +82,7 @@ def _fetch_exact_history_candle(exchange, symbol, timeframe, timestamp_ms, step_
     }
     response = exchange.request("v2/mix/market/history-candles", "mix", "GET", params)
     rows = response.get("data", []) if isinstance(response, dict) else []
-    return [row for row in rows if row and int(row[0]) == int(timestamp_ms)]
+    return [row[:6] for row in rows if row and int(row[0]) == int(timestamp_ms) and len(row) >= 6]
 
 
 def recover_missing_candles(exchange, symbol, timeframe, frame, step_ms, max_attempts=2):
