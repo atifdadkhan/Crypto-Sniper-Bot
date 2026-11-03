@@ -35,7 +35,7 @@ def is_excluded_non_crypto_base(base):
     return value in NON_CRYPTO_BASES
 
 
-def discover_usdt_swaps(exchange, min_quote_volume=500_000.0, max_symbols=0):
+def discover_usdt_swaps(exchange, min_quote_volume=500_000.0, max_symbols=0, absolute_min_quote_volume=None):
     """Discover active linear USDT-settled swaps, excluding known non-crypto underlyings."""
     markets = exchange.load_markets()
     tickers = exchange.fetch_tickers()
@@ -51,7 +51,10 @@ def discover_usdt_swaps(exchange, min_quote_volume=500_000.0, max_symbols=0):
         if is_excluded_non_crypto_base(base):
             continue
         ticker = tickers.get(symbol) or {}
-        quote_volume = ticker.get("quoteVolume")
+        # Prefer Bitget's explicit USDT turnover field for USDT-settled swaps.
+        quote_volume = ticker.get("usdtVolume")
+        if quote_volume is None:
+            quote_volume = ticker.get("quoteVolume")
         if quote_volume is None:
             base_volume, last = ticker.get("baseVolume"), ticker.get("last")
             quote_volume = (base_volume * last) if base_volume and last else 0
@@ -60,7 +63,8 @@ def discover_usdt_swaps(exchange, min_quote_volume=500_000.0, max_symbols=0):
         except (TypeError, ValueError):
             quote_volume = 0.0
         benchmark = base in {"BTC", "ETH"}
-        if benchmark or quote_volume >= min_quote_volume:
+        hard_floor = min_quote_volume if absolute_min_quote_volume is None else absolute_min_quote_volume
+        if benchmark or quote_volume >= hard_floor:
             selected.append((symbol, quote_volume, benchmark))
     selected.sort(key=lambda x: (not x[2], -x[1], x[0]))
     # Keep all ranked candidates. The target count is enforced only after each
@@ -271,14 +275,22 @@ def main():
     parser.add_argument("--symbols", default="auto", help="auto or comma-separated CCXT symbols")
     parser.add_argument("--days", type=int, default=365)
     parser.add_argument("--out", default="data")
-    parser.add_argument("--min-quote-volume", type=float, default=500_000)
+    parser.add_argument("--min-quote-volume", type=float, default=500_000,
+                        help="Preferred 24h USDT turnover; higher-turnover markets rank first")
+    parser.add_argument("--absolute-min-quote-volume", type=float, default=100_000,
+                        help="Hard USDT turnover floor; never relaxed below this")
+    parser.add_argument("--min-history-days", type=int, default=90,
+                        help="Minimum acceptable per-market history when requested lookback is unavailable")
     parser.add_argument("--max-symbols", type=int, default=20,
                         help="Target fully eligible markets; 0 means all eligible markets")
     args = parser.parse_args()
     if not 30 <= args.days <= 2000:
         parser.error("--days must be between 30 and 2000")
-    if args.min_quote_volume < 0 or args.max_symbols < 0:
-        parser.error("volume floor and max symbols cannot be negative")
+    if (args.min_quote_volume < 0 or args.absolute_min_quote_volume < 0
+            or args.absolute_min_quote_volume > args.min_quote_volume or args.max_symbols < 0):
+        parser.error("volume floors must be non-negative, absolute floor <= preferred floor, and max symbols >= 0")
+    if not 30 <= args.min_history_days <= args.days:
+        parser.error("--min-history-days must be between 30 and --days")
 
     exchange = ccxt.bitget({"enableRateLimit": True, "timeout": 30000,
                             "options": {"defaultType": "swap"}})
@@ -286,10 +298,14 @@ def main():
     manifest = {
         "exchange": "Bitget", "market_type": "linear USDT-settled perpetual swaps",
         "days_requested": args.days, "timeframes": list(TIMEFRAMES),
-        "min_24h_quote_volume_usdt": args.min_quote_volume,
+        "preferred_24h_turnover_usdt": args.min_quote_volume,
+        "absolute_min_24h_turnover_usdt": args.absolute_min_quote_volume,
+        "requested_history_days": args.days,
+        "minimum_history_days": args.min_history_days,
         "eligible_symbols_target": args.max_symbols,
-        "selection_policy": "volume-ranked candidates; continue until target count has complete validated history",
-        "coverage_policy": "every timeframe must cover the full requested lookback; no listing-age exemption",
+        "selection_policy": "rank by Bitget USDT turnover; use lower-turnover candidates only down to the absolute floor",
+        "coverage_policy": "per-market history is reduced only through explicit tiers; no fabricated candles",
+        "comparison_warning": "Per-market lookback may differ; compare markets on matched date windows before cross-market conclusions.",
         "universe_note": "Current active market universe; not point-in-time historical listings. "
                          "Known tokenised equities, indices and commodities are excluded using a maintained "
                          "base-symbol denylist. This is a heuristic, not a guarantee that every underlying is crypto.",
@@ -298,7 +314,8 @@ def main():
     }
     try:
         if args.symbols.strip().lower() == "auto":
-            markets = discover_usdt_swaps(exchange, args.min_quote_volume, args.max_symbols)
+            markets = discover_usdt_swaps(exchange, args.min_quote_volume, args.max_symbols,
+                                           absolute_min_quote_volume=args.absolute_min_quote_volume)
             symbols = [x[0] for x in markets]
             manifest["discovered_markets"] = [
                 {"symbol": s, "quote_volume_24h_usdt": round(v, 2), "macro_benchmark": b}
