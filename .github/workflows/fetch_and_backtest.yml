@@ -1,4 +1,4 @@
-name: Fetch BTC ETH Bitget Data and Timeframe Backtest
+name: Fetch BTC ETH Bitget Data and Multi-Strategy Backtest
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             --fee-slippage-pct "${{ inputs.fee_slippage_pct || '0.12' }}" \
             --funding-bps-per-8h "${{ inputs.funding_bps_per_8h || '0' }}"
 
-      - name: Backtest the actual live multi-timeframe signal strategy
+      - name: Backtest actual live multi-timeframe signal strategy
         run: |
           python -m backtesting.backtest \
             --data-dir data \
@@ -66,11 +66,17 @@ jobs:
             --funding-bps-per-8h "${{ inputs.funding_bps_per_8h || '0' }}" \
             --max-hold-bars 96
 
-      - name: Upload BTC ETH timeframe data and reports
+      - name: Backtest all five independent strategy engines
+        run: |
+          python -m backtesting.multi_strategy \
+            --data-dir data \
+            --fee-slippage-pct "${{ inputs.fee_slippage_pct || '0.12' }}"
+
+      - name: Upload BTC ETH data and all reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: at-trendhive-btc-eth-timeframe-backtest
+          name: at-trendhive-multi-strategy-backtest
           path: |
             data/
             backtest_results/
