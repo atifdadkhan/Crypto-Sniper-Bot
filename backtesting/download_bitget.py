@@ -17,10 +17,10 @@ TIMEFRAMES = ("15m", "1h", "4h", "1d")
 
 def history_fallback_tiers(requested_days, minimum_days):
     """Return descending, explicit lookback tiers without ever crossing the minimum."""
-    if requested_days < 30 or minimum_days < 30 or minimum_days > requested_days:
-        raise ValueError("history days must satisfy 30 <= minimum_days <= requested_days")
+    if requested_days < 120 or minimum_days < 120 or minimum_days > requested_days:
+        raise ValueError("history days must satisfy 120 <= minimum_days <= requested_days (100 daily-bar warm-up plus coverage buffer)")
     tiers = {int(requested_days), int(minimum_days)}
-    tiers.update(day for day in (365, 180, 90, 60, 30)
+    tiers.update(day for day in (365, 180, 120)
                  if minimum_days <= day <= requested_days)
     return sorted(tiers, reverse=True)
 
@@ -292,20 +292,20 @@ def main():
     parser.add_argument("--out", default="data")
     parser.add_argument("--min-quote-volume", type=float, default=500_000,
                         help="Preferred 24h USDT turnover; higher-turnover markets rank first")
-    parser.add_argument("--absolute-min-quote-volume", type=float, default=100_000,
+    parser.add_argument("--absolute-min-quote-volume", type=float, default=250_000,
                         help="Hard USDT turnover floor; never relaxed below this")
-    parser.add_argument("--min-history-days", type=int, default=90,
+    parser.add_argument("--min-history-days", type=int, default=120,
                         help="Minimum acceptable per-market history when requested lookback is unavailable")
     parser.add_argument("--max-symbols", type=int, default=20,
                         help="Target fully eligible markets; 0 means all eligible markets")
     args = parser.parse_args()
-    if not 30 <= args.days <= 2000:
-        parser.error("--days must be between 30 and 2000")
+    if not 120 <= args.days <= 2000:
+        parser.error("--days must be between 120 and 2000; the strategy requires 100 daily candles plus a coverage buffer")
     if (args.min_quote_volume < 0 or args.absolute_min_quote_volume < 0
             or args.absolute_min_quote_volume > args.min_quote_volume or args.max_symbols < 0):
         parser.error("volume floors must be non-negative, absolute floor <= preferred floor, and max symbols >= 0")
-    if args.min_history_days < 30:
-        parser.error("--min-history-days must be >= 30")
+    if args.min_history_days < 120:
+        parser.error("--min-history-days must be >= 120 for the strategy daily-timeframe warm-up")
     if args.min_history_days > args.days:
         print(f"WARNING: min history {args.min_history_days}d exceeds requested {args.days}d; clamping minimum to {args.days}d")
         args.min_history_days = args.days
