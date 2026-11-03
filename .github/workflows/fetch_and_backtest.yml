@@ -6,7 +6,7 @@ on:
       days:
         description: "Historical days to fetch"
         required: true
-        default: "30"
+        default: "365"
       min_quote_volume:
         description: "Minimum 24h quote volume in USDT"
         required: true
