@@ -156,49 +156,97 @@ def validate_requested_coverage(frame, symbol, timeframe, expected_start, step_m
         )
 
 
+def fetch_historical_ohlcv(exchange, symbol, timeframe, since_ms, until_ms, max_attempts=3):
+    """Fetch closed OHLCV in deterministic <=200-candle windows from Bitget history API.
+
+    Bitget's history-candles endpoint supports up to 90 days per request and
+    returns at most 200 rows. Fixed timestamp windows avoid relying on CCXT's
+    recent-candle pagination, which can silently cap the oldest returned bar.
+    """
+    if timeframe not in TIMEFRAMES:
+        raise ValueError(f"Unsupported timeframe: {timeframe}")
+    market = exchange.market(symbol)
+    granularity = {"15m": "15m", "1h": "1H", "4h": "4H", "1d": "1D"}[timeframe]
+    step_ms = int(exchange.parse_timeframe(timeframe) * 1000)
+    max_window_ms = min(200 * step_ms, 90 * 86_400_000)
+    cursor = (int(since_ms) // step_ms) * step_ms
+    until_ms = int(until_ms)
+    rows = []
+    request_count = 0
+
+    while cursor < until_ms:
+        window_end = min(cursor + max_window_ms, until_ms)
+        params = {
+            "symbol": market["id"],
+            "productType": "USDT-FUTURES",
+            "granularity": granularity,
+            "startTime": str(cursor),
+            "endTime": str(window_end - 1),
+            "limit": "200",
+        }
+        last_error = None
+        response = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = exchange.publicMixGetV2MixMarketHistoryCandles(params)
+                last_error = None
+                break
+            except Exception as exc:
+                last_error = exc
+                if attempt < max_attempts:
+                    time.sleep(max(float(getattr(exchange, "rateLimit", 100)), 250.0) * attempt / 1000.0)
+        if last_error is not None:
+            raise RuntimeError(
+                f"Bitget history-candles failed for {symbol} {timeframe} "
+                f"window {cursor}..{window_end}: {last_error}"
+            ) from last_error
+
+        data = response.get("data", []) if isinstance(response, dict) else []
+        for row in data or []:
+            if not row or len(row) < 6:
+                continue
+            stamp = int(row[0])
+            if cursor <= stamp < window_end:
+                rows.append(row[:6])
+        request_count += 1
+        cursor = window_end
+        if cursor < until_ms:
+            time.sleep(max(float(getattr(exchange, "rateLimit", 100)), 50.0) / 1000.0)
+
+    if not rows:
+        raise RuntimeError(f"No historical OHLCV data returned for {symbol} {timeframe}")
+    # Keep diagnostics useful without flooding Actions logs.
+    print(f"Bitget history API: {symbol} {timeframe}, {request_count} windows, {len(rows)} raw candles")
+    return rows
+
+
 def download_one(exchange, symbol: str, timeframe: str, days: int, out_dir: Path):
     if timeframe not in TIMEFRAMES:
         raise ValueError(f"Unsupported timeframe: {timeframe}")
-    if not exchange.has.get("fetchOHLCV"):
-        raise RuntimeError("Bitget CCXT adapter does not report fetchOHLCV support")
     now_ms = exchange.milliseconds()
     since = now_ms - days * 86_400_000
-    cursor = since
     step = exchange.parse_timeframe(timeframe) * 1000
-    rows, last_seen = [], None
 
-    while cursor < now_ms:
-        batch = exchange.fetch_ohlcv(symbol, timeframe=timeframe, since=cursor, limit=1000)
-        if not batch:
-            break
-        rows.extend(batch)
-        newest = int(batch[-1][0])
-        if last_seen is not None and newest <= last_seen:
-            raise RuntimeError(f"Non-advancing OHLCV pagination for {symbol} {timeframe}")
-        last_seen, cursor = newest, newest + step
-        if cursor < now_ms:
-            time.sleep(max(float(exchange.rateLimit), 100.0) / 1000.0)
-
-    if not rows:
-        raise RuntimeError(f"No OHLCV data returned for {symbol} {timeframe}")
+    # Use Bitget's dedicated historical endpoint for the entire lookback.
+    # Its request window is capped at 90 days and response page at 200 candles;
+    # fetch_historical_ohlcv pages by exact time windows to cover long histories.
+    rows = fetch_historical_ohlcv(exchange, symbol, timeframe, since, now_ms)
     frame = pd.DataFrame(rows, columns=["timestamp", "open", "high", "low", "close", "volume"])
     frame["timestamp"] = pd.to_datetime(frame["timestamp"], unit="ms", utc=True)
-    frame = frame[frame["timestamp"] + pd.to_timedelta(step, unit="ms") <= pd.Timestamp(now_ms, unit="ms", tz="UTC")]
+    frame = frame[
+        frame["timestamp"] + pd.to_timedelta(step, unit="ms")
+        <= pd.Timestamp(now_ms, unit="ms", tz="UTC")
+    ]
     frame = normalise_ohlcv(frame)
     before = len(frame)
     frame = recover_missing_candles(exchange, symbol, timeframe, frame, step)
     if len(frame) > before:
         print(f"Recovered {len(frame) - before} missing {timeframe} candle(s) for {symbol}")
-    try:
-        # Preserve strict validation for all timeframes except 15m. The backtest
-        # can safely use continuous 15m segments without ever trading across a gap.
-        validate_timeframe(frame, timeframe, symbol,
-                           allow_gaps=(timeframe == "15m"))
-    except ValueError:
-        raise
 
-    expected_start = pd.Timestamp(since, unit="ms", tz="UTC")
-    actual_start = frame.timestamp.iloc[0]
+    # Only 15m can be segmented safely by the simulator. Higher timeframes stay strict.
+    validate_timeframe(frame, timeframe, symbol, allow_gaps=(timeframe == "15m"))
+
+    expected_start = pd.Timestamp((since // step) * step, unit="ms", tz="UTC")
     actual_last_close = frame.timestamp.iloc[-1] + pd.to_timedelta(step, unit="ms")
     if pd.Timestamp(now_ms, unit="ms", tz="UTC") - actual_last_close > pd.to_timedelta(step * 2, unit="ms"):
         raise RuntimeError(f"DATA INSUFFICIENT: latest {timeframe} candle is stale for {symbol}: {actual_last_close}")
@@ -221,7 +269,7 @@ def download_one(exchange, symbol: str, timeframe: str, days: int, out_dir: Path
 def main():
     parser = argparse.ArgumentParser(description="Download eligible Bitget USDT perpetual crypto markets")
     parser.add_argument("--symbols", default="auto", help="auto or comma-separated CCXT symbols")
-    parser.add_argument("--days", type=int, default=30)
+    parser.add_argument("--days", type=int, default=365)
     parser.add_argument("--out", default="data")
     parser.add_argument("--min-quote-volume", type=float, default=500_000)
     parser.add_argument("--max-symbols", type=int, default=20,
