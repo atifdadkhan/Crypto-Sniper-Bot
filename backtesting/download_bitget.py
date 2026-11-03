@@ -1,6 +1,8 @@
 """Download validated Bitget linear USDT perpetual OHLCV using public endpoints only."""
 import argparse
 import json
+import shutil
+import tempfile
 import time
 from pathlib import Path
 
@@ -61,10 +63,8 @@ def discover_usdt_swaps(exchange, min_quote_volume=500_000.0, max_symbols=0):
         if benchmark or quote_volume >= min_quote_volume:
             selected.append((symbol, quote_volume, benchmark))
     selected.sort(key=lambda x: (not x[2], -x[1], x[0]))
-    if max_symbols > 0:
-        benchmarks = [x for x in selected if x[2]]
-        others = [x for x in selected if not x[2]]
-        selected = (benchmarks + others)[:max_symbols]
+    # Keep all ranked candidates. The target count is enforced only after each
+    # candidate has passed complete historical coverage validation.
     return selected
 
 
@@ -145,6 +145,17 @@ def recover_missing_candles(exchange, symbol, timeframe, frame, step_ms, max_att
     return frame
 
 
+def validate_requested_coverage(frame, symbol, timeframe, expected_start, step_ms):
+    """Require the requested lookback; recent listings cannot substitute for history."""
+    actual_start = frame.timestamp.iloc[0]
+    tolerance = pd.to_timedelta(step_ms, unit="ms")
+    if actual_start > expected_start + tolerance:
+        raise RuntimeError(
+            f"DATA INSUFFICIENT: {symbol} {timeframe} begins at {actual_start}; "
+            f"requested coverage begins at {expected_start}"
+        )
+
+
 def download_one(exchange, symbol: str, timeframe: str, days: int, out_dir: Path):
     if timeframe not in TIMEFRAMES:
         raise ValueError(f"Unsupported timeframe: {timeframe}")
@@ -191,16 +202,7 @@ def download_one(exchange, symbol: str, timeframe: str, days: int, out_dir: Path
     actual_last_close = frame.timestamp.iloc[-1] + pd.to_timedelta(step, unit="ms")
     if pd.Timestamp(now_ms, unit="ms", tz="UTC") - actual_last_close > pd.to_timedelta(step * 2, unit="ms"):
         raise RuntimeError(f"DATA INSUFFICIENT: latest {timeframe} candle is stale for {symbol}: {actual_last_close}")
-    if actual_start > expected_start + pd.Timedelta(days=2):
-        market_created = exchange.market(symbol).get("created")
-        if market_created is None:
-            raise RuntimeError(
-                f"DATA INSUFFICIENT: first candle {actual_start} is over 2 days later than requested start "
-                f"{expected_start}; listing age could not be verified"
-            )
-        created = pd.Timestamp(market_created, unit="ms", tz="UTC")
-        if created + pd.Timedelta(days=2) < actual_start:
-            raise RuntimeError(f"DATA INSUFFICIENT: unexpected history truncation for {symbol} {timeframe}")
+    validate_requested_coverage(frame, symbol, timeframe, expected_start, step)
 
     folder_name = str(exchange.market(symbol).get("base") or symbol.split("/")[0]).upper()
     folder = out_dir / f"{folder_name}USDT"
@@ -219,10 +221,11 @@ def download_one(exchange, symbol: str, timeframe: str, days: int, out_dir: Path
 def main():
     parser = argparse.ArgumentParser(description="Download eligible Bitget USDT perpetual crypto markets")
     parser.add_argument("--symbols", default="auto", help="auto or comma-separated CCXT symbols")
-    parser.add_argument("--days", type=int, default=365)
+    parser.add_argument("--days", type=int, default=30)
     parser.add_argument("--out", default="data")
     parser.add_argument("--min-quote-volume", type=float, default=500_000)
-    parser.add_argument("--max-symbols", type=int, default=0)
+    parser.add_argument("--max-symbols", type=int, default=20,
+                        help="Target fully eligible markets; 0 means all eligible markets")
     args = parser.parse_args()
     if not 30 <= args.days <= 2000:
         parser.error("--days must be between 30 and 2000")
@@ -235,7 +238,10 @@ def main():
     manifest = {
         "exchange": "Bitget", "market_type": "linear USDT-settled perpetual swaps",
         "days_requested": args.days, "timeframes": list(TIMEFRAMES),
-        "min_24h_quote_volume_usdt": args.min_quote_volume, "max_symbols": args.max_symbols,
+        "min_24h_quote_volume_usdt": args.min_quote_volume,
+        "eligible_symbols_target": args.max_symbols,
+        "selection_policy": "volume-ranked candidates; continue until target count has complete validated history",
+        "coverage_policy": "every timeframe must cover the full requested lookback; no listing-age exemption",
         "universe_note": "Current active market universe; not point-in-time historical listings. "
                          "Known tokenised equities, indices and commodities are excluded using a maintained "
                          "base-symbol denylist. This is a heuristic, not a guarantee that every underlying is crypto.",
@@ -252,23 +258,56 @@ def main():
             ]
         else:
             symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
-        print(f"Discovered {len(symbols)} markets. Downloading closed {', '.join(TIMEFRAMES)} candles.")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        print(
+            f"Discovered {len(symbols)} candidates. Target: "
+            f"{args.max_symbols if args.max_symbols else 'ALL eligible'} complete datasets; "
+            f"lookback: {args.days} days; timeframes: {', '.join(TIMEFRAMES)}."
+        )
         for idx, symbol in enumerate(symbols, 1):
-            print(f"[{idx}/{len(symbols)}] {symbol}")
+            if args.max_symbols > 0 and len(manifest["downloaded"]) >= args.max_symbols:
+                break
+            print(
+                f"Candidate [{idx}/{len(symbols)}] {symbol}; eligible "
+                f"{len(manifest['downloaded'])}/{args.max_symbols if args.max_symbols else 'ALL'}"
+            )
             result = {"symbol": symbol, "candles": {}}
             try:
-                for tf in TIMEFRAMES:
-                    result["candles"][tf] = download_one(exchange, symbol, tf, args.days, out_dir)
+                # Stage all timeframes and publish only after every timeframe validates.
+                with tempfile.TemporaryDirectory(prefix="bitget_symbol_", dir=out_dir) as tmp_dir:
+                    for tf in TIMEFRAMES:
+                        result["candles"][tf] = download_one(
+                            exchange, symbol, tf, args.days, Path(tmp_dir)
+                        )
+                    folder_name = str(
+                        exchange.market(symbol).get("base") or symbol.split("/")[0]
+                    ).upper() + "USDT"
+                    staged_folder = Path(tmp_dir) / folder_name
+                    destination = out_dir / folder_name
+                    if destination.exists():
+                        shutil.rmtree(destination)
+                    shutil.move(str(staged_folder), str(destination))
                 manifest["downloaded"].append(result)
+                print(f"ELIGIBLE: {symbol} ({len(manifest['downloaded'])}/{args.max_symbols or 'ALL'})")
             except Exception as exc:
                 result["error"] = f"{type(exc).__name__}: {exc}"
                 manifest["failed"].append(result)
-                print(f"DATA INSUFFICIENT / DOWNLOAD FAILED: {symbol}: {exc}")
-        out_dir.mkdir(parents=True, exist_ok=True)
+                print(f"SKIP INELIGIBLE MARKET: {symbol}: {exc}")
+        manifest["candidate_count"] = len(symbols)
+        manifest["candidates_attempted"] = len(manifest["downloaded"]) + len(manifest["failed"])
+        manifest["eligible_count"] = len(manifest["downloaded"])
         (out_dir / "download_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-        print(f"Download complete: {len(manifest['downloaded'])} complete, {len(manifest['failed'])} failed.")
+        print(
+            f"Download complete: {len(manifest['downloaded'])} eligible, "
+            f"{len(manifest['failed'])} skipped from {manifest['candidates_attempted']} attempted."
+        )
         if not manifest["downloaded"]:
             raise RuntimeError("No complete datasets downloaded; inspect DATA INSUFFICIENT reasons in manifest.")
+        if args.max_symbols > 0 and len(manifest["downloaded"]) < args.max_symbols:
+            raise RuntimeError(
+                f"Only {len(manifest['downloaded'])}/{args.max_symbols} eligible markets had "
+                f"the full {args.days}-day history. See download_manifest.json for skipped markets."
+            )
     finally:
         close = getattr(exchange, "close", None)
         if close:
