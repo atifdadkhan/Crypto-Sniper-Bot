@@ -76,8 +76,8 @@ def run_segment(symbol, timeframe, frame, btc_prepared, eth_prepared,
             continue
         row = enriched.iloc[i]
         signal_close_ns = int(pd.Timestamp(row.timestamp).value + interval * 1_000_000)
-        btc_trend = benchmark_trend_at(btc_prepared, signal_close_ns, interval)
-        eth_trend = benchmark_trend_at(eth_prepared, signal_close_ns, interval)
+        btc_trend = benchmark_trend_at(btc_prepared, signal_close_ns, 0)
+        eth_trend = benchmark_trend_at(eth_prepared, signal_close_ns, 0)
         if btc_trend is None or eth_trend is None:
             continue
 
