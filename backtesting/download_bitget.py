@@ -21,7 +21,7 @@ NON_CRYPTO_BASES = {
     "XAU", "XAG", "GOLD", "SILVER", "PAXG", "XAUT", "WTI", "BRENT", "OIL",
     "CL", "BZ", "HG", "NG", "COPPER", "NATGAS", "USOIL", "UKOIL",
     "SPX", "NDX", "DJI", "US30", "US100", "US500", "DXY", "EUR", "JPY",
-    "KORU", "SPCX",
+    "KORU", "SPCX", "MRVL", "CRCL", "DRAM", "OPENAI", "TQQQ",
 }
 
 
@@ -68,10 +68,28 @@ def discover_usdt_swaps(exchange, min_quote_volume=500_000.0, max_symbols=0):
     return selected
 
 
+def _fetch_exact_history_candle(exchange, symbol, timeframe, timestamp_ms, step_ms):
+    """Use Bitget's dedicated history-candles endpoint as an exact-gap fallback."""
+    market = exchange.market(symbol)
+    granularity = {"15m": "15m", "1h": "1H", "4h": "4H", "1d": "1D"}[timeframe]
+    params = {
+        "symbol": market["id"],
+        "productType": "USDT-FUTURES",
+        "granularity": granularity,
+        "startTime": str(timestamp_ms),
+        "endTime": str(timestamp_ms + step_ms - 1),
+        "limit": "10",
+    }
+    response = exchange.request("v2/mix/market/history-candles", "mix", "GET", params)
+    rows = response.get("data", []) if isinstance(response, dict) else []
+    return [row for row in rows if row and int(row[0]) == int(timestamp_ms)]
+
+
 def recover_missing_candles(exchange, symbol, timeframe, frame, step_ms, max_attempts=2):
-    """Re-request exact missing candle opens; never synthesize or forward-fill OHLCV."""
+    """Recover exact missing opens via current and historical endpoints; never synthesize OHLCV."""
     frame = frame.drop_duplicates("timestamp", keep="last").sort_values("timestamp").reset_index(drop=True)
-    for _ in range(max_attempts):
+    diagnostics = []
+    for attempt in range(1, max_attempts + 1):
         values = pd.DatetimeIndex(frame["timestamp"]).asi8 // 1_000_000
         if len(values) < 2:
             break
@@ -83,14 +101,32 @@ def recover_missing_candles(exchange, symbol, timeframe, frame, step_ms, max_att
             return frame
         additions = []
         for timestamp_ms in missing:
+            recovered = []
             try:
-                batch = exchange.fetch_ohlcv(
-                    symbol, timeframe=timeframe, since=timestamp_ms, limit=10
-                )
+                batch = exchange.fetch_ohlcv(symbol, timeframe=timeframe, since=timestamp_ms, limit=10)
+                recovered = [row for row in (batch or []) if int(row[0]) == timestamp_ms]
+                diagnostics.append({
+                    "timestamp_ms": timestamp_ms, "attempt": attempt,
+                    "source": "fetch_ohlcv", "rows_at_exact_timestamp": len(recovered),
+                })
             except Exception as exc:
-                print(f"Gap retry failed for {symbol} {timeframe} at {timestamp_ms}: {exc}")
-                continue
-            additions.extend(row for row in (batch or []) if int(row[0]) == timestamp_ms)
+                diagnostics.append({
+                    "timestamp_ms": timestamp_ms, "attempt": attempt,
+                    "source": "fetch_ohlcv", "error": str(exc),
+                })
+            if not recovered:
+                try:
+                    recovered = _fetch_exact_history_candle(exchange, symbol, timeframe, timestamp_ms, step_ms)
+                    diagnostics.append({
+                        "timestamp_ms": timestamp_ms, "attempt": attempt,
+                        "source": "history-candles", "rows_at_exact_timestamp": len(recovered),
+                    })
+                except Exception as exc:
+                    diagnostics.append({
+                        "timestamp_ms": timestamp_ms, "attempt": attempt,
+                        "source": "history-candles", "error": str(exc),
+                    })
+            additions.extend(recovered)
             time.sleep(max(float(getattr(exchange, "rateLimit", 100)), 100.0) / 1000.0)
         if not additions:
             break
@@ -98,6 +134,9 @@ def recover_missing_candles(exchange, symbol, timeframe, frame, step_ms, max_att
         extra["timestamp"] = pd.to_datetime(extra["timestamp"], unit="ms", utc=True)
         frame = pd.concat([frame, extra], ignore_index=True)
         frame = normalise_ohlcv(frame, min_candles=1)
+    if diagnostics:
+        print(f"Gap recovery diagnostics for {symbol} {timeframe}: "
+              + json.dumps(diagnostics, separators=(",", ":")))
     return frame
 
 
