@@ -14,11 +14,11 @@ on:
       absolute_min_quote_volume:
         description: "Hard minimum 24h USDT turnover; never relaxed below this"
         required: true
-        default: "100000"
+        default: "250000"
       min_history_days:
         description: "Minimum acceptable history when requested lookback is unavailable"
         required: true
-        default: "90"
+        default: "120"
       max_symbols:
         description: "Target fully eligible markets after history validation; 0 means ALL"
         required: true
