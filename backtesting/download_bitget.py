@@ -13,6 +13,18 @@ import pandas as pd
 from backtesting.data_loader import normalise_ohlcv, validate_timeframe
 
 TIMEFRAMES = ("15m", "1h", "4h", "1d")
+
+
+def history_fallback_tiers(requested_days, minimum_days):
+    """Return descending, explicit lookback tiers without ever crossing the minimum."""
+    if requested_days < 30 or minimum_days < 30 or minimum_days > requested_days:
+        raise ValueError("history days must satisfy 30 <= minimum_days <= requested_days")
+    tiers = {int(requested_days), int(minimum_days)}
+    tiers.update(day for day in (365, 180, 90, 60, 30)
+                 if minimum_days <= day <= requested_days)
+    return sorted(tiers, reverse=True)
+
+
 # Bitget lists some tokenised equities, indices and commodities as linear swaps.
 # This denylist is intentionally conservative and must be maintained as listings change.
 NON_CRYPTO_BASES = {
@@ -53,6 +65,9 @@ def discover_usdt_swaps(exchange, min_quote_volume=500_000.0, max_symbols=0, abs
         ticker = tickers.get(symbol) or {}
         # Prefer Bitget's explicit USDT turnover field for USDT-settled swaps.
         quote_volume = ticker.get("usdtVolume")
+        if quote_volume is None:
+            info = ticker.get("info") or {}
+            quote_volume = info.get("usdtVolume") if isinstance(info, dict) else None
         if quote_volume is None:
             quote_volume = ticker.get("quoteVolume")
         if quote_volume is None:
@@ -289,8 +304,11 @@ def main():
     if (args.min_quote_volume < 0 or args.absolute_min_quote_volume < 0
             or args.absolute_min_quote_volume > args.min_quote_volume or args.max_symbols < 0):
         parser.error("volume floors must be non-negative, absolute floor <= preferred floor, and max symbols >= 0")
-    if not 30 <= args.min_history_days <= args.days:
-        parser.error("--min-history-days must be between 30 and --days")
+    if args.min_history_days < 30:
+        parser.error("--min-history-days must be >= 30")
+    if args.min_history_days > args.days:
+        print(f"WARNING: min history {args.min_history_days}d exceeds requested {args.days}d; clamping minimum to {args.days}d")
+        args.min_history_days = args.days
 
     exchange = ccxt.bitget({"enableRateLimit": True, "timeout": 30000,
                             "options": {"defaultType": "swap"}})
@@ -337,12 +355,7 @@ def main():
                 f"{len(manifest['downloaded'])}/{args.max_symbols if args.max_symbols else 'ALL'}"
             )
             result = {"symbol": symbol, "candles": {}, "lookback_days": None}
-            tiers = sorted(
-                {args.days, args.min_history_days}
-                | {day for day in (365, 180, 90, 60, 30)
-                   if args.min_history_days <= day <= args.days},
-                reverse=True,
-            )
+            tiers = history_fallback_tiers(args.days, args.min_history_days)
             last_error = None
             accepted = False
             for lookback_days in tiers:
