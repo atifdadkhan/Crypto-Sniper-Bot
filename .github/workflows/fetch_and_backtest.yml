@@ -20,9 +20,9 @@ on:
         required: true
         default: "120"
       max_symbols:
-        description: "Target fully eligible markets after history validation; 0 means ALL"
+        description: "Target 5 fully eligible top-volume crypto markets for initial validation; increase later to expand. 0 means ALL"
         required: true
-        default: "20"
+        default: "5"
       fee_slippage_pct:
         description: "Estimated combined round-trip fees + slippage (% notional)"
         required: true
