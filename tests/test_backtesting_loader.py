@@ -5,6 +5,7 @@ import pytest
 from backtesting.data_loader import normalise_ohlcv, validate_timeframe
 from backtesting.download_bitget import (
     discover_usdt_swaps, is_excluded_non_crypto_base, recover_missing_candles,
+    validate_requested_coverage,
 )
 
 
@@ -172,3 +173,35 @@ def test_gap_recovery_retries_before_leaving_gap_unresolved():
                                   frame, 900000, max_attempts=2)
     validate_timeframe(out, "15m", "BTC")
     assert exchange.calls == 2
+
+
+def test_requested_coverage_rejects_recently_listed_market_even_if_listing_age_is_known():
+    frame = normalise_ohlcv(_frame(n=5, start=1760000400000), min_candles=1)
+    requested_start = frame.timestamp.iloc[0] - pd.Timedelta(days=30)
+    with pytest.raises(RuntimeError, match="DATA INSUFFICIENT"):
+        validate_requested_coverage(frame, "NEW/USDT:USDT", "15m", requested_start, 900000)
+
+
+def test_requested_coverage_accepts_full_requested_history_with_one_bar_alignment_tolerance():
+    frame = normalise_ohlcv(_frame(n=5, start=1760000400000), min_candles=1)
+    requested_start = frame.timestamp.iloc[0] - pd.Timedelta(minutes=5)
+    validate_requested_coverage(frame, "BTC/USDT:USDT", "15m", requested_start, 900000)
+
+
+def test_market_discovery_keeps_replacement_candidates_beyond_target_count():
+    class FakeExchange:
+        def load_markets(self):
+            return {
+                f"{base}/USDT:USDT": {
+                    "active": True, "swap": True, "linear": True,
+                    "quote": "USDT", "settle": "USDT", "base": base,
+                }
+                for base in ("BTC", "ETH", "SOL", "XRP")
+            }
+
+        def fetch_tickers(self):
+            return {symbol: {"quoteVolume": 2_000_000} for symbol in self.load_markets()}
+
+    candidates = discover_usdt_swaps(FakeExchange(), 500_000, 2)
+    assert len(candidates) == 4
+    assert [item[0] for item in candidates[:2]] == ["BTC/USDT:USDT", "ETH/USDT:USDT"]
