@@ -1,0 +1,311 @@
+{
+  "schema_version": 1,
+  "name": "A&T Institutional Quant Research Strategy Library",
+  "market_scope": "Bitget linear USDT perpetual crypto contracts",
+  "execution_policy": "signals_and_research_only_no_order_placement",
+  "status_legend": {
+    "implemented": "Independent research engine exists in repository",
+    "planned": "Documented candidate; implementation and tests still required",
+    "data_dependent": "Requires historical data beyond standard OHLCV"
+  },
+  "implemented": [
+    {
+      "id": "trend_pullback",
+      "family": "trend",
+      "description": "Pullback continuation in an established trend",
+      "sides": [
+        "LONG",
+        "SHORT"
+      ],
+      "timeframes": [
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "4h",
+        "1d"
+      ],
+      "status": "implemented"
+    },
+    {
+      "id": "breakout_retest",
+      "family": "trend",
+      "description": "Confirmed range breakout followed by a retest",
+      "sides": [
+        "LONG",
+        "SHORT"
+      ],
+      "timeframes": [
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "4h",
+        "1d"
+      ],
+      "status": "implemented"
+    },
+    {
+      "id": "momentum_continuation",
+      "family": "momentum",
+      "description": "Trend-aligned MACD and price momentum continuation",
+      "sides": [
+        "LONG",
+        "SHORT"
+      ],
+      "timeframes": [
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "4h",
+        "1d"
+      ],
+      "status": "implemented"
+    },
+    {
+      "id": "range_reversal",
+      "family": "mean_reversion",
+      "description": "Reversal near the edge of a range with candle confirmation",
+      "sides": [
+        "LONG",
+        "SHORT"
+      ],
+      "timeframes": [
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "4h",
+        "1d"
+      ],
+      "status": "implemented"
+    },
+    {
+      "id": "volatility_expansion",
+      "family": "volatility",
+      "description": "Range expansion breakout with trend and volume filters",
+      "sides": [
+        "LONG",
+        "SHORT"
+      ],
+      "timeframes": [
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "4h",
+        "1d"
+      ],
+      "status": "implemented"
+    }
+  ],
+  "planned": [
+    [
+      "ts_momentum",
+      "trend",
+      "Time-series momentum / CTA trend"
+    ],
+    [
+      "donchian_breakout",
+      "trend",
+      "Donchian channel breakout"
+    ],
+    [
+      "moving_average_regime",
+      "trend",
+      "Multi-speed moving-average regime"
+    ],
+    [
+      "cross_sectional_momentum",
+      "momentum",
+      "Cross-sectional relative strength ranking"
+    ],
+    [
+      "momentum_rotation",
+      "momentum",
+      "Momentum rotation across eligible contracts"
+    ],
+    [
+      "rsi_divergence",
+      "momentum",
+      "Confirmed RSI/price divergence"
+    ],
+    [
+      "bollinger_reversion",
+      "mean_reversion",
+      "Bollinger band reversion"
+    ],
+    [
+      "zscore_reversion",
+      "mean_reversion",
+      "Rolling z-score mean reversion"
+    ],
+    [
+      "vwap_reversion",
+      "mean_reversion",
+      "VWAP deviation and reversion"
+    ],
+    [
+      "short_term_reversal",
+      "mean_reversion",
+      "Short-horizon reversal"
+    ],
+    [
+      "pairs_spread",
+      "stat_arb",
+      "Pairs spread mean reversion"
+    ],
+    [
+      "cointegration_pairs",
+      "stat_arb",
+      "Cointegration-tested pairs"
+    ],
+    [
+      "kalman_pairs",
+      "stat_arb",
+      "Adaptive Kalman-filter spread"
+    ],
+    [
+      "funding_carry",
+      "carry",
+      "Funding-rate carry with settlement timing"
+    ],
+    [
+      "basis_carry",
+      "carry",
+      "Perpetual premium / basis carry"
+    ],
+    [
+      "funding_extremes_reversal",
+      "carry_sentiment",
+      "Extreme funding contrarian filter"
+    ],
+    [
+      "volatility_compression",
+      "volatility",
+      "Squeeze / compression breakout"
+    ],
+    [
+      "atr_volatility_target",
+      "volatility",
+      "Volatility-scaled risk and exposure"
+    ],
+    [
+      "realized_vol_regime",
+      "volatility",
+      "Realized volatility regime classification"
+    ],
+    [
+      "volume_imbalance",
+      "order_flow",
+      "Aggressive buy/sell volume imbalance"
+    ],
+    [
+      "cvd_confirmation",
+      "order_flow",
+      "Cumulative volume delta confirmation"
+    ],
+    [
+      "liquidity_sweep",
+      "order_flow",
+      "Liquidity sweep and reclaim"
+    ],
+    [
+      "orderbook_imbalance",
+      "order_flow",
+      "Order-book depth imbalance"
+    ],
+    [
+      "open_interest_impulse",
+      "derivatives_flow",
+      "Open-interest impulse with price"
+    ],
+    [
+      "oi_price_divergence",
+      "derivatives_flow",
+      "Price/open-interest divergence"
+    ],
+    [
+      "long_short_sentiment",
+      "sentiment",
+      "Crowding and long/short positioning"
+    ],
+    [
+      "liquidation_reversal",
+      "sentiment",
+      "Liquidation cluster reaction"
+    ],
+    [
+      "support_resistance_break",
+      "market_structure",
+      "Structure break and retest"
+    ],
+    [
+      "failed_breakout",
+      "market_structure",
+      "Failed auction / failed breakout"
+    ],
+    [
+      "market_structure_shift",
+      "market_structure",
+      "Swing structure shift and confirmation"
+    ],
+    [
+      "trend_regime_ensemble",
+      "quant_ensemble",
+      "Regime-conditioned strategy ensemble"
+    ],
+    [
+      "factor_model",
+      "quant_factor",
+      "Cross-sectional momentum/volatility/liquidity factors"
+    ],
+    [
+      "volatility_risk_premium",
+      "quant_factor",
+      "Realized versus implied volatility proxy where available"
+    ],
+    [
+      "ml_regime_classifier",
+      "machine_learning",
+      "Walk-forward market regime classifier"
+    ],
+    [
+      "ml_meta_label",
+      "machine_learning",
+      "Meta-labeling of independently generated signals"
+    ]
+  ],
+  "data_dependent": [
+    {
+      "id": "market_making",
+      "reason": "Requires tick-level trades, order-book updates, queue position and latency modelling"
+    },
+    {
+      "id": "latency_arbitrage",
+      "reason": "Requires synchronized low-latency feeds and execution infrastructure"
+    },
+    {
+      "id": "options_volatility_arbitrage",
+      "reason": "Requires options chains, implied volatility surface and Greeks"
+    },
+    {
+      "id": "news_event_arbitrage",
+      "reason": "Requires timestamped historical news and point-in-time sentiment"
+    }
+  ],
+  "research_controls": {
+    "no_lookahead": true,
+    "completed_candles_only": true,
+    "entry_model": "next_candle_open",
+    "include_fees_slippage": true,
+    "historical_funding_required_for_carry": true,
+    "chronological_train_validation_test": true,
+    "walk_forward_required": true,
+    "multiple_testing_control_required": true,
+    "minimum_trade_count_for_screening": 30,
+    "production_approval_requires_untouched_oos_and_paper_trading": true,
+    "insufficient_history_label": "DATA INSUFFICIENT"
+  }
+}
