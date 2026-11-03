@@ -31,7 +31,8 @@ def test_2h_derivation_does_not_fill_missing_source_candles():
     source = _frame("2026-01-01T00:00:00Z", 4, "1h")
     source = source.drop(index=1).reset_index(drop=True)
     result = derive_complete(source, "2h", 2)
-    assert result.empty
+    assert len(result) == 1
+    assert result.iloc[0].timestamp == pd.Timestamp("2026-01-01T02:00:00Z")
 
 
 def test_2h_derivation_aggregates_only_full_buckets():
