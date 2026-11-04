@@ -153,3 +153,55 @@ def test_both_telegram_messages_identify_strategy():
         setup = "Pullback"
     assert "15m Trend Pullback" in signal_text(Core())
     assert "TP1" in signal_text(Core())
+
+
+def test_two_live_engine_paths_are_independent(monkeypatch):
+    import importlib
+    from types import SimpleNamespace
+    monkeypatch.setenv("TELEGRAM_TOKEN", "1234:CI_DUMMY_NOT_REAL")
+    monkeypatch.setenv("ADMIN_ID", "1234")
+    app = importlib.import_module("main")
+    monkeypatch.setattr(app, "settings", SimpleNamespace(
+        min_score=7, exchange_timeout_ms=20000,
+        rs_engine_enabled=True, rs_signal_ttl_seconds=3600))
+    core, rs = object(), object()
+
+    class Stub:
+        fail_core = False
+        fail_rs = False
+
+        async def multi_timeframe(self, symbol, semaphore):
+            if self.fail_core:
+                raise ValueError("missing 15m candles")
+            return {"4h": object()}
+
+        async def candles(self, symbol, timeframe):
+            return object()
+
+        async def live_price(self, symbol):
+            return 100.0
+
+        async def extended_four_hour(self, symbol, recent):
+            if self.fail_rs:
+                raise ValueError("4h historical gap")
+            return object()
+
+    stub = Stub()
+    monkeypatch.setattr(app, "client", stub)
+    monkeypatch.setattr(app, "evaluate", lambda *a, **kw: core)
+    monkeypatch.setattr(app, "precheck_recent_breakout", lambda *a, **kw: True)
+    monkeypatch.setattr(app, "evaluate_relative_strength", lambda *a, **kw: rs)
+
+    macros = {"trend": "BULLISH", "return_6_pct": 1.0,
+              "return_7d_pct": 2.0, "candle_close_ms": 1234}
+    result = asyncio.run(app._scan_one("COIN", asyncio.Semaphore(1), macros, macros))
+    assert result[1] == [core, rs] and not result[2]
+
+    stub.fail_rs = True
+    result = asyncio.run(app._scan_one("COIN", asyncio.Semaphore(1), macros, macros))
+    assert result[1] == [core] and result[2]["RS_4H"] == "ValueError"
+
+    stub.fail_rs = False
+    stub.fail_core = True
+    result = asyncio.run(app._scan_one("COIN", asyncio.Semaphore(1), macros, macros))
+    assert result[1] == [rs] and result[2]["CORE_15M"] == "ValueError"
