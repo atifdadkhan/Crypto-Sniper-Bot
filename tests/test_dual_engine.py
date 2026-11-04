@@ -93,8 +93,10 @@ class PagedExchange:
         return rows[:limit]
 
 
-def test_older_4h_history_is_paged_without_synthetic_candles():
+def test_older_4h_history_is_paged_without_synthetic_candles(monkeypatch):
     df = history()
+    # Treat the synthetic final bar as freshly closed, not Jan 2026 historical.
+    monkeypatch.setattr("exchange.time.time", lambda: (int(df.timestamp.iloc[-1]) + TF_MS + 5000) / 1000)
     bot = MarketData()
     provider = PagedExchange(df)
     bot.exchange = provider
