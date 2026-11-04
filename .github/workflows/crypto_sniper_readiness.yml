@@ -1,0 +1,39 @@
+name: Crypto Sniper Live Readiness Watch
+
+on:
+  # GitHub-hosted check is inexpensive but may be delayed by GitHub Actions.
+  schedule:
+    - cron: '17 */4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crypto-sniper-live-readiness-watch
+  cancel-in-progress: false
+
+jobs:
+  scanner-readiness:
+    name: External scanner readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check Render HTTP health and completed scan freshness
+        run: |
+          python -m monitoring.readiness_check --attempts 4 --delay 20
+      - name: Publish result summary
+        if: always()
+        run: |
+          {
+            echo '## Crypto Sniper external readiness'
+            echo '- Production: https://crypto-sniper-bot-1fej.onrender.com'
+            echo '- This check verifies HTTP health, service identity, a recent completed scanner pass, and nonempty 4H watch.'
+            echo '- Zero trading alerts is NOT treated as failure.'
+            echo '- This cannot prove Telegram delivery or trading profitability.'
+            echo '- For individual issues inspect sanitized Render logs and /ready.'
+          } >> "$GITHUB_STEP_SUMMARY"
