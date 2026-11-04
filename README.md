@@ -51,3 +51,48 @@ The repository now includes a preserved strategy catalog and a full-market resea
 To run the all-market workflow after these changes are merged into `main`, open **Actions → Bitget Perpetual Research and Backtest → Run workflow**, select `all_markets`, and choose the requested history window. It discovers active eligible crypto USDT perpetuals (not spot), downloads public OHLCV, and backtests the five preserved engines. The default 365-day request is subject to each contract's actual listing history and API coverage.
 
 The first full-market stage does not yet apply historical funding to simulated trades. It explicitly reports that limitation; funding-aware carry engines remain gated until timestamped historical funding data is collected. GitHub Actions artifacts are temporary (90-day retention), not permanent archival storage. Do not use an in-sample leaderboard as a live-signal approval.
+
+
+## Reliability upgrade (audit branch — not yet production verified)
+
+This is a signal-only engineering upgrade. It does not prove signal accuracy
+or profitability, and it never submits exchange orders.
+
+- Closed OHLCV data must contain at least 100 complete bars, valid numerical
+  prices/volumes, and exact expected timestamps. Missing candles are not filled.
+- New live-quote checks reject unverified timestamps/spreads.
+- BTC/ETH opposing-trend exceptions require 4H independent coin strength:
+  score >= 8, 4H ADX >=18, direction-aligned positive/negative 6-bar return,
+  and at least +1 percentage point relative performance versus both BTC and ETH.
+  Missing macro returns block an exception. Such alerts carry a risk warning.
+- MIN_SCORE=7 remains the default, with supported values 5-10. Lower scores
+  are not equivalent to profitable setups. Research baseline remains >=7.
+- Completed coin scans are delivered immediately instead of waiting for an
+  entire market universe to finish. Messages are queued and retried if Telegram
+  is temporarily unavailable. Each alert expires 900 seconds after its
+  completed 15m candle by default.
+- A rotating all-market scan processes 80 symbols per pass by default, trading
+  comprehensive coverage for fresher alerts on Render Free. To scan every
+  symbol in a single pass, set SCAN_BATCH_SIZE=0; this may take too long.
+  At 320 eligible markets, 80 symbols every 15 minutes means approximately
+  1 hour per full rotation, not 15-minute coverage of every coin.
+- New environment variables: SCAN_BATCH_SIZE=80 and
+  SIGNAL_TTL_SECONDS=900. Existing Telegram token and admin ID settings
+  are reused without copying credentials into source.
+- The Telegram menu includes Refresh Markets. Bot Status shows rotating
+  scan coverage and pending alerts.
+- HTTPX/HTTPCore INFO request logging is suppressed to reduce risk of
+  exposing Telegram API URLs with tokens.
+- /health is a liveness endpoint. /ready returns HTTP 503 on stale or
+  failing scanner readiness.
+- Render Free local storage is ephemeral. Pending messages may be lost
+  across redeploys, and at-least-once/exactly-once delivery is NOT guaranteed.
+
+### Validation gate
+
+Before production deployment: pass GitHub CI, verify the live Bitget candle
+timestamps and ticker fields, test real Telegram message sending/retry,
+verify Render readiness and polling uniqueness. Then forward paper-test
+at least 14 days and evaluate realistic spread, fees, slippage, funding,
+out-of-sample expectancy, profit factor, and drawdown. Research results
+are not live strategy approval.

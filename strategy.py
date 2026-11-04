@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import math
 
 from indicators import enrich, trend
+from macro_policy import direction_policy
 
 
 @dataclass
@@ -19,6 +20,8 @@ class Signal:
     atr: float
     risk_distance_pct: float
     setup: str
+    counter_macro: bool = False
+    candle_close_ms: int = 0
 
     def to_dict(self):
         return asdict(self)
@@ -133,7 +136,8 @@ def _candidate(row, side, live_price):
     if structural_quality:
         score += 1
         reasons.append("price rejected the pullback area")
-    if score < 7:
+    # Honor MIN_SCORE (5..10); the caller owns the threshold.
+    if score < 5:
         return None
 
     # Entry is the current quote, not the old candle close. Recalculate risk/targets.
@@ -149,7 +153,8 @@ def _candidate(row, side, live_price):
     )
 
 
-def evaluate(symbol, candles, btc_trend, eth_trend, min_score=7, current_price=None):
+def evaluate(symbol, candles, btc_trend, eth_trend, min_score=7, current_price=None,
+             btc_return_6_pct=None, eth_return_6_pct=None):
     """Multi-timeframe quantitative setup with anti-chase and structure filters."""
     required = ("15m", "1h", "4h", "1d")
     if not isinstance(candles, dict) or any(tf not in candles for tf in required):
@@ -162,19 +167,34 @@ def evaluate(symbol, candles, btc_trend, eth_trend, min_score=7, current_price=N
     latest = {tf: frame.iloc[-1] for tf, frame in frames.items()}
     fast, h1, h4, d1 = (latest[tf] for tf in required)
     candidates = []
+    try:
+        asset_return_6_pct = 100 * (float(frames["4h"].close.iloc[-1]) / float(frames["4h"].close.iloc[-7]) - 1)
+    except (ValueError, TypeError, ZeroDivisionError, IndexError):
+        return None
     for side in ("LONG", "SHORT"):
         wanted = "BULLISH" if side == "LONG" else "BEARISH"
         opposite = "BEARISH" if side == "LONG" else "BULLISH"
         if trend(h1) != wanted or trend(h4) != wanted or trend(d1) == opposite:
             continue
-        if btc_trend == opposite or eth_trend == opposite:
-            continue
         candidate = _candidate(fast, side, current_price)
-        if candidate is None or candidate.score < min_score:
+        if candidate is None:
             continue
-        candidate.symbol = symbol
         if btc_trend == wanted and eth_trend == wanted:
             candidate.score = min(10, candidate.score + 1)
             candidate.reasons.append("BTC and ETH support the direction")
+        allowed, independent = direction_policy(
+            side, btc_trend, eth_trend, candidate.score, asset_return_6_pct,
+            btc_return_6_pct, eth_return_6_pct, h4.adx,
+        )
+        if not allowed or candidate.score < min_score:
+            continue
+        if independent:
+            candidate.counter_macro = True
+            candidate.reasons.append("Strong independent 4H trend despite BTC/ETH opposition")
+        candidate.symbol = symbol
+        try:
+            candidate.candle_close_ms = int(float(candles["15m"].timestamp.iloc[-1])) + 900_000
+        except (TypeError, ValueError, AttributeError):
+            candidate.candle_close_ms = 0
         candidates.append(candidate)
     return max(candidates, key=lambda item: item.score) if candidates else None

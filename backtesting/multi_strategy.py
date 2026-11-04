@@ -53,7 +53,9 @@ def _strategy_signal(row, side, name):
 
     if name == "trend_pullback":
         candidate = _candidate(row, side, close)
-        if candidate is None:
+        # Preserve the research engine's historical >=7 quality baseline.
+        # The live scanner alone may opt into lower thresholds explicitly.
+        if candidate is None or candidate.score < 7:
             return None
         candidate.setup = name
         return candidate

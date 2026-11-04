@@ -4,6 +4,8 @@ import time
 import ccxt.async_support as ccxt
 import pandas as pd
 
+from backtesting.download_bitget import is_excluded_non_crypto_base
+
 TIMEFRAMES = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000}
 
 
@@ -26,14 +28,20 @@ class MarketData:
     async def top_symbols(self, top_n=20, min_quote_volume=500000):
         symbols = [s for s, m in self.markets.items()
                    if m.get("active") is not False and m.get("swap") and m.get("linear")
-                   and m.get("quote") == "USDT"]
+                   and m.get("quote") == "USDT" and m.get("settle") in (None, "USDT")
+                   and not is_excluded_non_crypto_base(m.get("base"), market=m)]
         if not symbols:
             return []
         tickers = await self.exchange.fetch_tickers(symbols)
         ranked = []
         for symbol, ticker in tickers.items():
             last = ticker.get("last")
-            quote_volume = ticker.get("quoteVolume")
+            quote_volume = ticker.get("usdtVolume")
+            if quote_volume is None:
+                info = ticker.get("info") or {}
+                quote_volume = info.get("usdtVolume") if isinstance(info, dict) else None
+            if quote_volume is None:
+                quote_volume = ticker.get("quoteVolume")
             if quote_volume is None and last is not None and ticker.get("baseVolume") is not None:
                 quote_volume = float(last) * float(ticker["baseVolume"])
             try:
@@ -49,25 +57,58 @@ class MarketData:
 
     async def candles(self, symbol, timeframe, limit=140):
         raw = await self.exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
-        if not raw or len(raw) < 82:
+        interval = TIMEFRAMES[timeframe]
+        if raw and len(raw) < 101:
+            # Bitget may cap a daily request to 100 rows and historical
+            # requests to 90 calendar days. Fetch a nearby earlier page;
+            # never invent the missing 100th closed candle.
+            try:
+                first_open = min(int(row[0]) for row in raw)
+                older = await self.exchange.fetch_ohlcv(
+                    symbol, timeframe=timeframe,
+                    since=first_open - min(75 * 86_400_000, 100 * interval), limit=100,
+                )
+                raw = sorted({int(row[0]): row for row in [*(older or []), *raw]}.values(),
+                             key=lambda row: int(row[0]))
+            except (TypeError, ValueError, IndexError):
+                pass
+        if not raw or len(raw) < 100:
             raise ValueError(f"DATA INSUFFICIENT: {symbol} {timeframe} has too few candles")
-        # Ignore the still-forming candle; never generate a signal from an open candle.
-        closed = raw[:-1]
-        if len(closed) < 80:
+        # Select by actual candle close timestamp. Providers sometimes omit the
+        # still-forming candle; blindly dropping [-1] then loses a valid bar.
+        now_ms = int(time.time() * 1000)
+        interval = TIMEFRAMES[timeframe]
+        try:
+            closed = [bar for bar in raw if int(bar[0]) + interval <= now_ms - 5_000]
+        except (ValueError, TypeError, IndexError):
+            raise ValueError(f"DATA INSUFFICIENT: invalid candle timestamps for {symbol}")
+        if len(closed) < 100:
             raise ValueError(f"DATA INSUFFICIENT: {symbol} {timeframe} closed candles")
         df = pd.DataFrame(closed, columns=["timestamp", "open", "high", "low", "close", "volume"])
         df = df.sort_values("timestamp").drop_duplicates("timestamp", keep="last")
-        if len(df) < 80:
+        if len(df) < 100:
             raise ValueError(f"DATA INSUFFICIENT: duplicate {timeframe} candles for {symbol}")
         # Reject stale feeds and major holes in the recent candle sequence.
-        now_ms = int(time.time() * 1000)
-        interval = TIMEFRAMES[timeframe]
         last_ts = int(df.timestamp.iloc[-1])
-        if now_ms - last_ts > interval * 2.5:
+        if last_ts + interval > now_ms + 30_000 or now_ms - (last_ts + interval) > interval * 1.2:
             raise ValueError(f"STALE DATA: {symbol} {timeframe} last closed candle is old")
-        recent_ts = df.timestamp.tail(80).astype("int64").diff().dropna()
-        if (recent_ts > interval * 2.5).any():
-            raise ValueError(f"DATA INSUFFICIENT: candle gaps in {symbol} {timeframe}")
+        recent_ts = df.timestamp.tail(100).astype("int64").diff().dropna()
+        if (recent_ts != interval).any():
+            bad = recent_ts[recent_ts != interval]
+            sample = [(int(idx), int(gap)) for idx, gap in bad.head(3).items()]
+            raise ValueError(f"DATA INSUFFICIENT: missing/duplicate {timeframe} candles for {symbol}; gaps_ms={sample}")
+        numeric = df[["open", "high", "low", "close", "volume"]].apply(
+            pd.to_numeric, errors="coerce"
+        )
+        if numeric.isna().any().any() or not numeric.map(math.isfinite).all().all():
+            raise ValueError(f"DATA INSUFFICIENT: invalid numeric OHLCV for {symbol}")
+        if ((numeric[["open", "high", "low", "close"]] <= 0).any().any()
+                or (numeric["volume"] < 0).any()):
+            raise ValueError(f"DATA INSUFFICIENT: invalid OHLCV values for {symbol}")
+        if ((numeric["high"] < numeric[["open", "low", "close"]].max(axis=1)) |
+                (numeric["low"] > numeric[["open", "high", "close"]].min(axis=1))).any():
+            raise ValueError(f"DATA INSUFFICIENT: invalid OHLC geometry for {symbol}")
+        df[numeric.columns] = numeric
         return df.reset_index(drop=True)
 
 
@@ -84,17 +125,24 @@ class MarketData:
         if not math.isfinite(last) or last <= 0:
             raise ValueError(f"Invalid live quote for {symbol}")
         stamp = ticker.get("timestamp")
-        if stamp:
-            age_ms = int(time.time() * 1000) - int(stamp)
+        if stamp is not None:
+            try:
+                age_ms = int(time.time() * 1000) - int(stamp)
+            except (TypeError, ValueError):
+                raise ValueError(f"INVALID QUOTE TIMESTAMP: {symbol}")
             if age_ms > 90_000 or age_ms < -10_000:
                 raise ValueError(f"STALE DATA: live quote for {symbol}")
         bid, ask = ticker.get("bid"), ticker.get("ask")
-        if bid and ask:
+        try:
             bid, ask = float(bid), float(ask)
-            if bid > 0 and ask >= bid:
-                spread_pct = (ask - bid) / ((ask + bid) / 2) * 100
-                if spread_pct > 0.15:
-                    raise ValueError(f"WIDE SPREAD: {symbol} spread {spread_pct:.3f}%")
+            spread_pct = (ask - bid) / ((ask + bid) / 2) * 100
+        except (ValueError, TypeError, ZeroDivisionError):
+            bid, ask, spread_pct = 0.0, 0.0, float("inf")
+        if bid > 0 and ask >= bid and spread_pct > 0.15:
+            raise ValueError(f"WIDE SPREAD: {symbol} spread {spread_pct:.3f}%")
+        # CCXT permits a missing ticker timestamp; require a valid book quote then.
+        if stamp is None and (bid <= 0 or ask < bid or not math.isfinite(spread_pct)):
+            raise ValueError(f"UNVERIFIED QUOTE: {symbol} no timestamp or valid bid/ask")
         return last
 
     async def multi_timeframe(self, symbol, semaphore):
@@ -104,19 +152,40 @@ class MarketData:
             return dict(zip(TIMEFRAMES, values))
 
 
-async def macro_trend(client, symbol):
+async def macro_snapshot(client, symbol):
+    """Closed 4h BTC/ETH trend and 6-bar return for relative-strength gating."""
+    unknown = {"trend": "UNKNOWN", "return_6_pct": None}
     raw = await client.fetch_ohlcv(symbol, timeframe="4h", limit=100)
     if not raw or len(raw) < 60:
-        return "UNKNOWN"
-    df = pd.DataFrame(raw[:-1], columns=["timestamp", "open", "high", "low", "close", "volume"])
-    close = pd.to_numeric(df.close, errors="coerce").dropna()
-    if len(close) < 55:
-        return "UNKNOWN"
+        return unknown
+    interval = TIMEFRAMES["4h"]
+    now = int(time.time() * 1000)
+    try:
+        closed = [bar for bar in raw if int(bar[0]) + interval <= now - 5_000]
+    except (ValueError, TypeError, IndexError):
+        return unknown
+    df = pd.DataFrame(closed, columns=["timestamp", "open", "high", "low", "close", "volume"])
+    df = df.sort_values("timestamp").drop_duplicates("timestamp")
+    if len(df) < 60:
+        return unknown
+    stamps = df.timestamp.tail(60).astype("int64")
+    last_open = int(stamps.iloc[-1])
+    if (stamps.diff().dropna() != interval).any():
+        return unknown
+    if last_open + interval > now + 30_000 or now - (last_open + interval) > interval * 1.2:
+        return unknown
+    close = pd.to_numeric(df.close, errors="coerce")
+    if close.isna().any() or (close <= 0).any():
+        return unknown
     e9 = close.ewm(span=9, adjust=False).mean().iloc[-1]
     e21 = close.ewm(span=21, adjust=False).mean().iloc[-1]
     e50 = close.ewm(span=50, adjust=False).mean().iloc[-1]
-    if close.iloc[-1] > e9 > e21 > e50:
-        return "BULLISH"
-    if close.iloc[-1] < e9 < e21 < e50:
-        return "BEARISH"
-    return "NEUTRAL"
+    trend_value = ("BULLISH" if close.iloc[-1] > e9 > e21 > e50 else
+                   "BEARISH" if close.iloc[-1] < e9 < e21 < e50 else "NEUTRAL")
+    return {"trend": trend_value,
+            "return_6_pct": 100 * (float(close.iloc[-1]) / float(close.iloc[-7]) - 1)}
+
+
+async def macro_trend(client, symbol):
+    """Compatibility wrapper for consumers needing only the macro direction."""
+    return (await macro_snapshot(client, symbol))["trend"]
