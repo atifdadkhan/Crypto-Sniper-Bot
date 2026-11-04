@@ -11,8 +11,8 @@ from backtesting.multi_strategy import metrics
 EXPECTED_OFFSETS = list(range(0, 800, 20))
 
 
-def classify(result, minimum_oos_trades):
-    if result.get("trades", 0) < minimum_oos_trades:
+def classify(result, minimum_oos_trades, market_count):
+    if result.get("trades", 0) < minimum_oos_trades or market_count < 5:
         return "DATA INSUFFICIENT"
     pf = result.get("profit_factor")
     if pf is not None and pf >= 1.20 and result.get("net_r", 0) > 0:
@@ -95,7 +95,7 @@ def main():
             aggregate_rows.append({
                 "asset_class": asset_class, "timeframe": timeframe, "strategy": strategy,
                 "markets": int(group["symbol"].nunique()),
-                "research_status": classify(result, args.minimum_oos_trades),
+                "research_status": classify(result, args.minimum_oos_trades, int(group["symbol"].nunique())),
                 "oos_trades": result.get("trades", 0),
                 "oos_win_rate_pct": result.get("win_rate_pct"),
                 "oos_profit_factor": result.get("profit_factor"),
@@ -138,6 +138,7 @@ def main():
         "Only complete symbols listed as downloaded in each batch manifest are eligible.",
         "Pooled rankings are chronological trade-level R summaries, not capital-weighted portfolio drawdowns.",
         "Fixed strategy combinations; first 60% in-sample and final 40% out-of-sample per contiguous segment.",
+        "Aggregate screening requires at least 20 OOS trades across at least 5 markets.",
         "Historical perpetual funding is not included. Results are research-only, not live approval.", "",
         "| Asset class | TF | Strategy | Markets | OOS trades | PF | Net R | Max DD R | Status |",
         "|---|---|---|---:|---:|---:|---:|---:|---|",
