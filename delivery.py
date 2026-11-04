@@ -27,7 +27,8 @@ class AlertOutbox:
         if not candle:
             # A legacy signal without a candle timestamp should never be queued.
             return None
-        return f"{signal.symbol}|{signal.side}|{candle}"
+        strategy_id = str(getattr(signal, "strategy_id", "CORE_15M"))
+        return f"{strategy_id}|{signal.symbol}|{signal.side}|{candle}"
 
     def persist(self):
         atomic_json(self.path, self.items)
@@ -47,14 +48,21 @@ class AlertOutbox:
         if not item_id or any(row["id"] == item_id for row in self.items):
             return False
         close_at = int(signal.candle_close_ms) / 1000
+        ttl = getattr(signal, "ttl_seconds", self.expiry_seconds)
+        try:
+            ttl = int(ttl)
+        except (TypeError, ValueError):
+            return False
+        if not 120 <= ttl <= 14_400:
+            return False
         # A scan completed too late cannot queue an actionable historical entry.
-        if close_at > now + 60 or now - close_at > self.expiry_seconds:
+        if close_at > now + 60 or now - close_at >= ttl:
             return False
         if len(self.items) >= self.max_pending:
             return False
         self.items.append({
             "id": item_id, "text": text, "signal": signal.to_dict(),
-            "expires_at": close_at + self.expiry_seconds,
+            "expires_at": close_at + ttl,
             "queued_at": now, "attempts": 0,
         })
         self.persist()

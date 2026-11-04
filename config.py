@@ -54,6 +54,8 @@ class Settings:
     concurrency: int
     scan_batch_size: int
     signal_ttl_seconds: int
+    rs_engine_enabled: bool
+    rs_signal_ttl_seconds: int
 
 
 def load_settings():
@@ -79,4 +81,6 @@ def load_settings():
         concurrency=_int("SCAN_CONCURRENCY", 3, 1, 8),
         scan_batch_size=_int("SCAN_BATCH_SIZE", 80, 0, 1000),
         signal_ttl_seconds=_int("SIGNAL_TTL_SECONDS", 900, 120, 1800),
+        rs_engine_enabled=_bool("RS_ENGINE_ENABLED", True),
+        rs_signal_ttl_seconds=_int("RS_SIGNAL_TTL_SECONDS", 3600, 120, 14400),
     )

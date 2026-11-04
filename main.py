@@ -21,6 +21,7 @@ from telegram.ext import Application, CallbackQueryHandler, CommandHandler, Cont
 from config import load_settings
 from exchange import MarketData, macro_snapshot
 from strategy import evaluate
+from relative_strength import evaluate_relative_strength, precheck_recent_breakout
 from formatting import signal_text, help_text
 from delivery import AlertOutbox
 from utils import load_json, atomic_json, cooldown_active
@@ -54,7 +55,8 @@ scan_lock = asyncio.Lock()
 delivery_lock = asyncio.Lock()
 client = MarketData(settings.exchange_timeout_ms, settings.request_rate_limit)
 last_scan_result = {"symbols": 0, "signals": 0, "skipped": 0, "no_setup": 0,
-                    "universe": 0, "scan_batch": 0, "delivery_pending": len(outbox.items)}
+                    "universe": 0, "scan_batch": 0, "delivery_pending": len(outbox.items),
+                    "core15m_queued": 0, "rs4h_queued": 0, "rs4h_errors": 0}
 if isinstance(state.get("last_scan_result"), dict):
     last_scan_result.update(state["last_scan_result"])
 last_scan_result["delivery_pending"] = len(outbox.items)
@@ -126,6 +128,9 @@ def _scan_summary():
             f"Checked: {last_scan_result['symbols']} / {last_scan_result['universe']} markets\n"
             f"Rotating batch: {last_scan_result['scan_batch']}\n"
             f"Alerts delivered: {last_scan_result['signals']}\n"
+            f"15m engine queued: {last_scan_result.get('core15m_queued', 0)}\n"
+            f"4H RS queued: {last_scan_result.get('rs4h_queued', 0)}\n"
+            f"4H RS data errors: {last_scan_result.get('rs4h_errors', 0)}\n"
             f"Skipped (data/errors): {last_scan_result['skipped']}\n"
             f"No valid setup: {last_scan_result['no_setup']}\n"
             f"Pending Telegram alerts: {len(outbox.items)}\n"
@@ -153,7 +158,9 @@ async def settings_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
            f"Scan interval: {settings.scan_seconds}s\n"
            f"Batch per scan: {settings.scan_batch_size or 'All'}\n"
            f"Concurrent pairs: {settings.concurrency}\n"
-           f"Alert expiry: {settings.signal_ttl_seconds}s after candle close\n"
+           f"15m alert expiry: {settings.signal_ttl_seconds}s\n"
+           f"4H RS engine: {'ON' if settings.rs_engine_enabled else 'OFF'}\n"
+           f"4H RS expiry: {settings.rs_signal_ttl_seconds}s\n"
            f"Cooldown: {settings.cooldown_minutes} min\n"
            f"Risk reference: {settings.risk_percent:.2f}%\n"
            f"Notional cap: {settings.max_position_notional:.2f} USDT\n\n"
@@ -179,7 +186,7 @@ async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for item in reversed(history[-10:]):
         lines.append(f"• {escape(str(item.get('side', '?')))} "
                      f"{escape(str(item.get('symbol', '?')))} — "
-                     f"score {int(item.get('score', 0))}/10 — "
+                     f"{escape(str(item.get('strategy_name') or ('15m Trend Pullback' if item.get('setup') == 'Pullback' else '15m Breakout Retest')))} — "
                      f"{escape(str(item.get('timestamp', ''))[:16])}")
     await update.effective_message.reply_text("\n".join(lines),
                                               parse_mode=ParseMode.HTML, reply_markup=MAIN_MENU)
@@ -223,7 +230,9 @@ async def _show_settings(query, context):
            f"Market cap: {settings.top_n or 'All'}\n"
            f"Batch per scan: {settings.scan_batch_size or 'All'}\n"
            f"Cooldown: {settings.cooldown_minutes}m\n"
-           f"Alert expiry: {settings.signal_ttl_seconds}s\n"
+           f"15m expiry: {settings.signal_ttl_seconds}s\n"
+           f"4H RS engine: {'ON' if settings.rs_engine_enabled else 'OFF'}\n"
+           f"4H RS expiry: {settings.rs_signal_ttl_seconds}s\n"
            f"Scan interval: {settings.scan_seconds}s\nNo auto trading.")
     await query.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=MAIN_MENU)
 
@@ -236,7 +245,7 @@ async def _show_history(query, context):
     for item in reversed(history[-10:]):
         lines.append(f"• {escape(str(item.get('side', '?')))} "
                      f"{escape(str(item.get('symbol', '?')))} — "
-                     f"{int(item.get('score', 0))}/10")
+                     f"{escape(str(item.get('strategy_name') or ('15m Trend Pullback' if item.get('setup') == 'Pullback' else '15m Breakout Retest')))}")
     await query.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML,
                                    reply_markup=MAIN_MENU)
 
@@ -273,7 +282,8 @@ async def _deliver_pending(bot, chat_id, limit=5):
                 history.append(item_data)
                 del history[:-300]
                 _save_history()
-            state["cooldowns"][f"{item_data['symbol']}|{item_data['side']}"] = time.time()
+            engine = item_data.get("strategy_id", "CORE_15M")
+            state["cooldowns"][f"{engine}|{item_data['symbol']}|{item_data['side']}"] = time.time()
             outbox.remove(item["id"])
             _save_state()
             last_delivery_error = None
@@ -290,25 +300,60 @@ async def retry_pending(context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _scan_one(symbol, sem, btc, eth):
+    """Run both engines independently; one timeframe failure cannot veto the other."""
     async with sem:
-        try:
-            async def fetch():
+        async def scan():
+            core, rs = None, None
+            failures = {}
+            candles, recent_4h, live = None, None, None
+            async def core_attempt():
+                nonlocal candles, recent_4h, live
                 candles = await client.multi_timeframe(symbol, asyncio.Semaphore(1))
+                recent_4h = candles["4h"]
                 live = await client.live_price(symbol)
+                # Original 15m engine: exact same strategy and input arguments.
                 return evaluate(
                     symbol, candles, btc["trend"], eth["trend"], settings.min_score,
                     current_price=live, btc_return_6_pct=btc["return_6_pct"],
                     eth_return_6_pct=eth["return_6_pct"],
                 )
-            signal = await asyncio.wait_for(
-                fetch(), timeout=max(60, settings.exchange_timeout_ms * 6 / 1000)
-            )
-            return symbol, signal, None
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            log.warning("Skipped %s: %s", symbol, type(exc).__name__)
-            return symbol, None, type(exc).__name__
+            try:
+                core = await asyncio.wait_for(
+                    core_attempt(), timeout=max(60, settings.exchange_timeout_ms * 6 / 1000)
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                failures["CORE_15M"] = type(exc).__name__
+                log.warning("15m scan skipped %s: %s", symbol, type(exc).__name__)
+
+            if settings.rs_engine_enabled:
+                async def rs_attempt():
+                    recent = recent_4h
+                    price = live
+                    if recent is None:
+                        recent = await client.candles(symbol, "4h")
+                    # Most markets need zero extra HTTP requests.
+                    if not precheck_recent_breakout(recent, btc, eth):
+                        return None
+                    if price is None:
+                        price = await client.live_price(symbol)
+                    extended = await client.extended_four_hour(symbol, recent)
+                    return evaluate_relative_strength(
+                        symbol, extended, price, btc, eth,
+                        ttl_seconds=settings.rs_signal_ttl_seconds,
+                    )
+                try:
+                    # A slow 4H history fetch cannot discard a valid 15m signal.
+                    rs = await asyncio.wait_for(rs_attempt(), timeout=75)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    failures["RS_4H"] = type(exc).__name__
+                    log.warning("4H RS scan skipped %s: %s", symbol, type(exc).__name__)
+            return symbol, [signal for signal in (core, rs) if signal is not None], failures
+
+        return await scan()
 
 
 async def run_scan(bot=None, chat_id=None):
@@ -317,6 +362,7 @@ async def run_scan(bot=None, chat_id=None):
         return "A market scan is already running."
     async with scan_lock:
         scanned = skipped = no_setup = delivered = queued = 0
+        core_queued = rs_queued = rs_errors = 0
         tasks = []
         started = time.monotonic()
         try:
@@ -350,21 +396,33 @@ async def run_scan(bot=None, chat_id=None):
             # Process finished markets immediately: never wait for the slowest market
             # before alerting the first valid candidate.
             for completed in asyncio.as_completed(tasks):
-                _, signal, failure = await completed
+                _, signals, failures = await completed
                 scanned += 1
-                if failure is not None:
+                if failures.get("CORE_15M"):
                     skipped += 1
-                    continue
-                if signal is None:
+                if failures.get("RS_4H"):
+                    rs_errors += 1
+                if not signals:
                     no_setup += 1
                     continue
-                key = f"{signal.symbol}|{signal.side}"
-                if cooldown_active(state["cooldowns"].get(key), settings.cooldown_minutes):
-                    continue
-                if outbox.add(signal, signal_text(signal, settings.risk_percent,
-                                                 settings.max_position_notional)):
-                    queued += 1
-                    delivered += await _deliver_pending(bot, chat_id, limit=5)
+                # Each strategy gets its own symbol+side cooldown and candle
+                # outbox ID, so a 4H signal cannot suppress a valid 15m alert.
+                for signal in signals:
+                    engine = getattr(signal, "strategy_id", "CORE_15M")
+                    key = f"{engine}|{signal.symbol}|{signal.side}"
+                    last = state["cooldowns"].get(key)
+                    if last is None and engine == "CORE_15M":
+                        last = state["cooldowns"].get(f"{signal.symbol}|{signal.side}")
+                    if cooldown_active(last, settings.cooldown_minutes):
+                        continue
+                    if outbox.add(signal, signal_text(signal, settings.risk_percent,
+                                                     settings.max_position_notional)):
+                        queued += 1
+                        if engine == "RS_4H":
+                            rs_queued += 1
+                        else:
+                            core_queued += 1
+                        delivered += await _deliver_pending(bot, chat_id, limit=5)
 
             state["last_scan"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
             state["last_scan_epoch"] = time.time()
@@ -373,6 +431,8 @@ async def run_scan(bot=None, chat_id=None):
                 "symbols": scanned, "signals": delivered, "skipped": skipped,
                 "no_setup": no_setup, "universe": n, "scan_batch": len(symbols),
                 "delivery_pending": len(outbox.items),
+                "core15m_queued": core_queued, "rs4h_queued": rs_queued,
+                "rs4h_errors": rs_errors,
             }
             _save_state()
             duration = round(time.monotonic() - started, 1)
@@ -380,6 +440,8 @@ async def run_scan(bot=None, chat_id=None):
                     f"{delivered} Telegram alerts sent, {queued} queued, "
                     f"{skipped} data/errors, {no_setup} no setup. "
                     f"BTC: {btc['trend']}; ETH: {eth['trend']}. "
+                    f"15m queued: {core_queued}; 4H RS queued: {rs_queued}; "
+                    f"4H RS data/errors: {rs_errors}. "
                     f"Rotating batch size: {len(symbols)}. Pending: {len(outbox.items)}.")
         except asyncio.CancelledError:
             raise
