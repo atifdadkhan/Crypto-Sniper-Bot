@@ -21,6 +21,7 @@ from telegram.ext import Application, CallbackQueryHandler, CommandHandler, Cont
 from config import load_settings
 from exchange import MarketData, macro_snapshot
 from strategy import evaluate
+from relative_strength import evaluate_relative_strength, precheck_recent_breakout
 from formatting import signal_text, help_text
 from delivery import AlertOutbox
 from utils import load_json, atomic_json, cooldown_active
@@ -54,7 +55,8 @@ scan_lock = asyncio.Lock()
 delivery_lock = asyncio.Lock()
 client = MarketData(settings.exchange_timeout_ms, settings.request_rate_limit)
 last_scan_result = {"symbols": 0, "signals": 0, "skipped": 0, "no_setup": 0,
-                    "universe": 0, "scan_batch": 0, "delivery_pending": len(outbox.items)}
+                    "universe": 0, "scan_batch": 0, "delivery_pending": len(outbox.items),
+                    "core15m_queued": 0, "rs4h_queued": 0, "rs4h_errors": 0}
 if isinstance(state.get("last_scan_result"), dict):
     last_scan_result.update(state["last_scan_result"])
 last_scan_result["delivery_pending"] = len(outbox.items)
@@ -126,6 +128,9 @@ def _scan_summary():
             f"Checked: {last_scan_result['symbols']} / {last_scan_result['universe']} markets\n"
             f"Rotating batch: {last_scan_result['scan_batch']}\n"
             f"Alerts delivered: {last_scan_result['signals']}\n"
+            f"15m engine queued: {last_scan_result.get('core15m_queued', 0)}\n"
+            f"4H RS queued: {last_scan_result.get('rs4h_queued', 0)}\n"
+            f"4H RS data errors: {last_scan_result.get('rs4h_errors', 0)}\n"
             f"Skipped (data/errors): {last_scan_result['skipped']}\n"
             f"No valid setup: {last_scan_result['no_setup']}\n"
             f"Pending Telegram alerts: {len(outbox.items)}\n"
@@ -153,7 +158,9 @@ async def settings_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
            f"Scan interval: {settings.scan_seconds}s\n"
            f"Batch per scan: {settings.scan_batch_size or 'All'}\n"
            f"Concurrent pairs: {settings.concurrency}\n"
-           f"Alert expiry: {settings.signal_ttl_seconds}s after candle close\n"
+           f"15m alert expiry: {settings.signal_ttl_seconds}s\n"
+           f"4H RS engine: {'ON' if settings.rs_engine_enabled else 'OFF'}\n"
+           f"4H RS expiry: {settings.rs_signal_ttl_seconds}s\n"
            f"Cooldown: {settings.cooldown_minutes} min\n"
            f"Risk reference: {settings.risk_percent:.2f}%\n"
            f"Notional cap: {settings.max_position_notional:.2f} USDT\n\n"
@@ -179,7 +186,7 @@ async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for item in reversed(history[-10:]):
         lines.append(f"• {escape(str(item.get('side', '?')))} "
                      f"{escape(str(item.get('symbol', '?')))} — "
-                     f"score {int(item.get('score', 0))}/10 — "
+                     f"{escape(str(item.get('strategy_name') or ('15m Trend Pullback' if item.get('setup') == 'Pullback' else '15m Breakout Retest')))} — "
                      f"{escape(str(item.get('timestamp', ''))[:16])}")
     await update.effective_message.reply_text("\n".join(lines),
                                               parse_mode=ParseMode.HTML, reply_markup=MAIN_MENU)
@@ -223,7 +230,9 @@ async def _show_settings(query, context):
            f"Market cap: {settings.top_n or 'All'}\n"
            f"Batch per scan: {settings.scan_batch_size or 'All'}\n"
            f"Cooldown: {settings.cooldown_minutes}m\n"
-           f"Alert expiry: {settings.signal_ttl_seconds}s\n"
+           f"15m expiry: {settings.signal_ttl_seconds}s\n"
+           f"4H RS engine: {'ON' if settings.rs_engine_enabled else 'OFF'}\n"
+           f"4H RS expiry: {settings.rs_signal_ttl_seconds}s\n"
            f"Scan interval: {settings.scan_seconds}s\nNo auto trading.")
     await query.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=MAIN_MENU)
 
@@ -236,7 +245,7 @@ async def _show_history(query, context):
     for item in reversed(history[-10:]):
         lines.append(f"• {escape(str(item.get('side', '?')))} "
                      f"{escape(str(item.get('symbol', '?')))} — "
-                     f"{int(item.get('score', 0))}/10")
+                     f"{escape(str(item.get('strategy_name') or ('15m Trend Pullback' if item.get('setup') == 'Pullback' else '15m Breakout Retest')))}")
     await query.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML,
                                    reply_markup=MAIN_MENU)
 
@@ -273,7 +282,8 @@ async def _deliver_pending(bot, chat_id, limit=5):
                 history.append(item_data)
                 del history[:-300]
                 _save_history()
-            state["cooldowns"][f"{item_data['symbol']}|{item_data['side']}"] = time.time()
+            engine = item_data.get("strategy_id", "CORE_15M")
+            state["cooldowns"][f"{engine}|{item_data['symbol']}|{item_data['side']}"] = time.time()
             outbox.remove(item["id"])
             _save_state()
             last_delivery_error = None
