@@ -59,14 +59,14 @@ class MarketData:
         raw = await self.exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
         interval = TIMEFRAMES[timeframe]
         if raw and len(raw) < 101:
-            # Bitget may cap a daily OHLCV request to 100 rows (including
-            # the still-forming bar). Fetch a previous, overlapping page;
+            # Bitget may cap a daily request to 100 rows and historical
+            # requests to 90 calendar days. Fetch a nearby earlier page;
             # never invent the missing 100th closed candle.
             try:
                 first_open = min(int(row[0]) for row in raw)
                 older = await self.exchange.fetch_ohlcv(
                     symbol, timeframe=timeframe,
-                    since=first_open - 100 * interval, limit=100,
+                    since=first_open - min(75 * 86_400_000, 100 * interval), limit=100,
                 )
                 raw = sorted({int(row[0]): row for row in [*(older or []), *raw]}.values(),
                              key=lambda row: int(row[0]))
