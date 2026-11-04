@@ -58,7 +58,8 @@ client = MarketData(settings.exchange_timeout_ms, settings.request_rate_limit)
 last_scan_result = {"symbols": 0, "signals": 0, "skipped": 0, "no_setup": 0,
                     "universe": 0, "scan_batch": 0, "delivery_pending": len(outbox.items),
                     "core15m_queued": 0, "rs4h_queued": 0, "rs4h_errors": 0,
-                    "slow4h_queued": 0}
+                    "slow4h_queued": 0,
+                    "four_hour_watch": 0, "four_hour_extra": 0}
 if isinstance(state.get("last_scan_result"), dict):
     last_scan_result.update(state["last_scan_result"])
 last_scan_result["delivery_pending"] = len(outbox.items)
@@ -133,6 +134,8 @@ def _scan_summary():
             f"15m engine queued: {last_scan_result.get('core15m_queued', 0)}\n"
             f"4H RS queued: {last_scan_result.get('rs4h_queued', 0)}\n"
             f"4H Slow Momentum queued: {last_scan_result.get('slow4h_queued', 0)}\n"
+            f"4H liquid universe: {last_scan_result.get('four_hour_watch', 0)} markets\n"
+            f"4H-only extra checks: {last_scan_result.get('four_hour_extra', 0)}\n"
             f"4H RS data errors: {last_scan_result.get('rs4h_errors', 0)}\n"
             f"Skipped (data/errors): {last_scan_result['skipped']}\n"
             f"No valid setup: {last_scan_result['no_setup']}\n"
@@ -162,7 +165,8 @@ async def settings_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
            f"Batch per scan: {settings.scan_batch_size or 'All'}\n"
            f"Concurrent pairs: {settings.concurrency}\n"
            f"15m alert expiry: {settings.signal_ttl_seconds}s\n"
-           f"4H RS engine: {'ON' if settings.rs_engine_enabled else 'OFF'}\n"
+           f"4H engine: {'ON' if settings.rs_engine_enabled else 'OFF'}\n"
+           f"4H liquidity cap: Top {settings.four_hour_top_n}\n"
            f"4H RS expiry: {settings.rs_signal_ttl_seconds}s\n"
            f"Cooldown: {settings.cooldown_minutes} min\n"
            f"Risk reference: {settings.risk_percent:.2f}%\n"
@@ -234,7 +238,8 @@ async def _show_settings(query, context):
            f"Batch per scan: {settings.scan_batch_size or 'All'}\n"
            f"Cooldown: {settings.cooldown_minutes}m\n"
            f"15m expiry: {settings.signal_ttl_seconds}s\n"
-           f"4H RS engine: {'ON' if settings.rs_engine_enabled else 'OFF'}\n"
+           f"4H engine: {'ON' if settings.rs_engine_enabled else 'OFF'}\n"
+           f"4H liquid top: {settings.four_hour_top_n}\n"
            f"4H RS expiry: {settings.rs_signal_ttl_seconds}s\n"
            f"Scan interval: {settings.scan_seconds}s\nNo auto trading.")
     await query.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=MAIN_MENU)
@@ -302,7 +307,22 @@ async def retry_pending(context: ContextTypes.DEFAULT_TYPE):
         log.info("Retried and delivered %d pending alerts", delivered)
 
 
-async def _scan_one(symbol, sem, btc, eth):
+def scan_assignments(core_batch, four_hour_watch):
+    """Combine original rotating 15m coverage with a recurring liquid 4H watch.
+
+    Each symbol is scheduled once per pass. A watch-only assignment never
+    evaluates the old 15m strategy, preserving its original scan coverage.
+    """
+    core = list(dict.fromkeys(core_batch))
+    watch = list(dict.fromkeys(four_hour_watch))
+    active = set(watch)
+    included = set(core)
+    jobs = [(symbol, True, symbol in active) for symbol in core]
+    jobs.extend((symbol, False, True) for symbol in watch if symbol not in included)
+    return jobs
+
+
+async def _scan_one(symbol, sem, btc, eth, core_enabled=True, four_hour_enabled=True):
     """Run both engines independently; one timeframe failure cannot veto the other."""
     async with sem:
         async def scan():
@@ -321,16 +341,17 @@ async def _scan_one(symbol, sem, btc, eth):
                     eth_return_6_pct=eth["return_6_pct"],
                 )
             try:
-                core = await asyncio.wait_for(
-                    core_attempt(), timeout=max(60, settings.exchange_timeout_ms * 6 / 1000)
-                )
+                if core_enabled:
+                    core = await asyncio.wait_for(
+                        core_attempt(), timeout=max(60, settings.exchange_timeout_ms * 6 / 1000)
+                    )
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
                 failures["CORE_15M"] = type(exc).__name__
                 log.warning("15m scan skipped %s: %s", symbol, type(exc).__name__)
 
-            if settings.rs_engine_enabled:
+            if four_hour_enabled and settings.rs_engine_enabled:
                 async def rs_attempt():
                     recent = recent_4h
                     price = live
@@ -405,8 +426,21 @@ async def run_scan(bot=None, chat_id=None):
             )
             btc = macro[0] if isinstance(macro[0], dict) else {"trend": "UNKNOWN", "return_6_pct": None}
             eth = macro[1] if isinstance(macro[1], dict) else {"trend": "UNKNOWN", "return_6_pct": None}
+            # Core 15m rotates through ALL liquid symbols. The 4H engine
+            # watches only the most liquid coins EVERY pass, including when
+            # they are not in the current 15m batch. This prevents the
+            # 1-hour 4H alert TTL expiring during an all-market rotation.
+            four_hour_watch = (all_symbols[:settings.four_hour_top_n]
+                               if settings.rs_engine_enabled else [])
+            assignments = scan_assignments(symbols, four_hour_watch)
             sem = asyncio.Semaphore(settings.concurrency)
-            tasks = [asyncio.create_task(_scan_one(s, sem, btc, eth)) for s in symbols]
+            tasks = [
+                asyncio.create_task(_scan_one(
+                    symbol, sem, btc, eth,
+                    core_enabled=check_core, four_hour_enabled=check_four_hour
+                ))
+                for symbol, check_core, check_four_hour in assignments
+            ]
 
             # Process finished markets immediately: never wait for the slowest market
             # before alerting the first valid candidate.
@@ -450,6 +484,8 @@ async def run_scan(bot=None, chat_id=None):
                 "delivery_pending": len(outbox.items),
                 "core15m_queued": core_queued, "rs4h_queued": rs_queued,
                 "slow4h_queued": slow_queued, "rs4h_errors": rs_errors,
+                "four_hour_watch": len(four_hour_watch),
+                "four_hour_extra": len(assignments) - len(symbols),
             }
             _save_state()
             duration = round(time.monotonic() - started, 1)
@@ -460,7 +496,9 @@ async def run_scan(bot=None, chat_id=None):
                     f"15m queued: {core_queued}; 4H RS queued: {rs_queued}; "
                     f"4H Slow queued: {slow_queued}; "
                     f"4H RS data/errors: {rs_errors}. "
-                    f"Rotating batch size: {len(symbols)}. Pending: {len(outbox.items)}.")
+                    f"15m rotation: {len(symbols)}; 4H liquid watch: {len(four_hour_watch)}; "
+                    f"extra 4H-only checks: {len(assignments)-len(symbols)}. "
+                    f"Pending: {len(outbox.items)}.")
         except asyncio.CancelledError:
             raise
         except Exception as exc:

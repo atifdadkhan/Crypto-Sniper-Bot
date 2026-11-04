@@ -62,12 +62,16 @@ no correlated-portfolio exposure constraint and no forward fill logs. Reused
 July–November is not an untouched prospective holdout. Significance is unknown.
 High total R and PF do not establish achievable capital profits.
 
-**Full-market dataset:** a 193 MB compressed GitHub Actions artifact,
-at-trendhive-full-market-crypto-and-equities, exists under run 41805382357.
-It was NOT loaded for this specific comparison: this workspace currently has a
-100 MB limit per imported file. This report does not imply a 168-market
-retest occurred. Historical research files remain accessible in GitHub Actions
-until retention expiry; avoid claiming completeness beyond validated symbols.
+**Full-market update, November 5, 2026:** The 193 MB GitHub Actions
+download archive from run 41805382357 WAS eventually mounted and tested.
+It contained 328 fully downloaded market folders (out of a larger discovered
+universe). After excluding tokenized-equity-classified markets and known stock
+proxies, 273 crypto or crypto-unverified markets were evaluated. The earlier
+17-market favorable sample was NOT representative. See FULL_MARKET_RISK_GATE.md.
+
+This is still a previously viewed period on currently listed markets, not
+a clean prospective holdout, and data-derived eligibility choices are
+subject to selection bias. Historical artifacts expire according to retention.
 
 ## Signal execution / manual risk controls
 
