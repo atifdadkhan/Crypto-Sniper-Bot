@@ -94,7 +94,9 @@ class MarketData:
             raise ValueError(f"STALE DATA: {symbol} {timeframe} last closed candle is old")
         recent_ts = df.timestamp.tail(100).astype("int64").diff().dropna()
         if (recent_ts != interval).any():
-            raise ValueError(f"DATA INSUFFICIENT: missing/duplicate {timeframe} candles for {symbol}")
+            bad = recent_ts[recent_ts != interval]
+            sample = [(int(idx), int(gap)) for idx, gap in bad.head(3).items()]
+            raise ValueError(f"DATA INSUFFICIENT: missing/duplicate {timeframe} candles for {symbol}; gaps_ms={sample}")
         numeric = df[["open", "high", "low", "close", "volume"]].apply(
             pd.to_numeric, errors="coerce"
         )
