@@ -85,6 +85,8 @@ def _simulate_window(symbol, timeframe, bars, votes_by_index, strategy_name, sta
     next_entry = max(100, int(start_index))
     max_hold = max(1, 86_400_000 // INTERVAL_MS[timeframe])
     for i in range(next_entry, len(view) - 1):
+        if i < next_entry:
+            continue
         row = view.iloc[i]
         votes = votes_by_index[i]
         selected_by_side = {}
@@ -103,10 +105,8 @@ def _simulate_window(symbol, timeframe, bars, votes_by_index, strategy_name, sta
             if combined is not None:
                 selected_by_side[side] = combined
         if len(selected_by_side) == 2:
-            long_votes, short_votes = len(votes["LONG"]), len(votes["SHORT"])
-            if long_votes == short_votes:
-                continue
-            selected = selected_by_side["LONG" if long_votes > short_votes else "SHORT"]
+            # Conflicting LONG and SHORT setups on the same closed candle are ambiguous.
+            continue
         elif selected_by_side:
             selected = next(iter(selected_by_side.values()))
         else:
