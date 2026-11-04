@@ -49,10 +49,16 @@ class MarketData:
 
     async def candles(self, symbol, timeframe, limit=140):
         raw = await self.exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
-        if not raw or len(raw) < 102:
+        if not raw or len(raw) < 100:
             raise ValueError(f"DATA INSUFFICIENT: {symbol} {timeframe} has too few candles")
-        # Ignore the still-forming candle; never generate a signal from an open candle.
-        closed = raw[:-1]
+        # Select by actual candle close timestamp. Providers sometimes omit the
+        # still-forming candle; blindly dropping [-1] then loses a valid bar.
+        now_ms = int(time.time() * 1000)
+        interval = TIMEFRAMES[timeframe]
+        try:
+            closed = [bar for bar in raw if int(bar[0]) + interval <= now_ms - 5_000]
+        except (ValueError, TypeError, IndexError):
+            raise ValueError(f"DATA INSUFFICIENT: invalid candle timestamps for {symbol}")
         if len(closed) < 100:
             raise ValueError(f"DATA INSUFFICIENT: {symbol} {timeframe} closed candles")
         df = pd.DataFrame(closed, columns=["timestamp", "open", "high", "low", "close", "volume"])
@@ -60,8 +66,6 @@ class MarketData:
         if len(df) < 100:
             raise ValueError(f"DATA INSUFFICIENT: duplicate {timeframe} candles for {symbol}")
         # Reject stale feeds and major holes in the recent candle sequence.
-        now_ms = int(time.time() * 1000)
-        interval = TIMEFRAMES[timeframe]
         last_ts = int(df.timestamp.iloc[-1])
         if last_ts + interval > now_ms + 30_000 or now_ms - (last_ts + interval) > interval * 1.2:
             raise ValueError(f"STALE DATA: {symbol} {timeframe} last closed candle is old")
@@ -127,15 +131,19 @@ async def macro_snapshot(client, symbol):
     """Closed 4h BTC/ETH trend and 6-bar return for relative-strength gating."""
     unknown = {"trend": "UNKNOWN", "return_6_pct": None}
     raw = await client.fetch_ohlcv(symbol, timeframe="4h", limit=100)
-    if not raw or len(raw) < 62:
+    if not raw or len(raw) < 60:
         return unknown
-    df = pd.DataFrame(raw[:-1], columns=["timestamp", "open", "high", "low", "close", "volume"])
+    interval = TIMEFRAMES["4h"]
+    now = int(time.time() * 1000)
+    try:
+        closed = [bar for bar in raw if int(bar[0]) + interval <= now - 5_000]
+    except (ValueError, TypeError, IndexError):
+        return unknown
+    df = pd.DataFrame(closed, columns=["timestamp", "open", "high", "low", "close", "volume"])
     df = df.sort_values("timestamp").drop_duplicates("timestamp")
     if len(df) < 60:
         return unknown
     stamps = df.timestamp.tail(60).astype("int64")
-    interval = TIMEFRAMES["4h"]
-    now = int(time.time() * 1000)
     last_open = int(stamps.iloc[-1])
     if (stamps.diff().dropna() != interval).any():
         return unknown
