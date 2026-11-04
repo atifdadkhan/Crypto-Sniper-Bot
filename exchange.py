@@ -57,6 +57,21 @@ class MarketData:
 
     async def candles(self, symbol, timeframe, limit=140):
         raw = await self.exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
+        interval = TIMEFRAMES[timeframe]
+        if raw and len(raw) < 101:
+            # Bitget may cap a daily OHLCV request to 100 rows (including
+            # the still-forming bar). Fetch a previous, overlapping page;
+            # never invent the missing 100th closed candle.
+            try:
+                first_open = min(int(row[0]) for row in raw)
+                older = await self.exchange.fetch_ohlcv(
+                    symbol, timeframe=timeframe,
+                    since=first_open - 100 * interval, limit=100,
+                )
+                raw = sorted({int(row[0]): row for row in [*(older or []), *raw]}.values(),
+                             key=lambda row: int(row[0]))
+            except (TypeError, ValueError, IndexError):
+                pass
         if not raw or len(raw) < 100:
             raise ValueError(f"DATA INSUFFICIENT: {symbol} {timeframe} has too few candles")
         # Select by actual candle close timestamp. Providers sometimes omit the
