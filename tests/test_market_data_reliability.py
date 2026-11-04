@@ -72,3 +72,21 @@ def test_macro_snapshot_with_closed_candles():
     result = asyncio.run(macro_snapshot(FakeExchange(rows), "BTC/USDT:USDT"))
     assert result["trend"] in {"BULLISH", "BEARISH", "NEUTRAL"}
     assert result["return_6_pct"] > 0
+
+
+
+def test_daily_api_page_limit_uses_older_real_candles():
+    class Paged(FakeExchange):
+        def __init__(self, candles):
+            super().__init__(candles)
+        async def fetch_ohlcv(self, symbol, timeframe="1d", since=None, limit=140):
+            if since is None:
+                return self.source[-100:]
+            return self.source[-200:-100]
+
+    rows = make_candles(interval=86_400_000, count=200)
+    bot = MarketData()
+    bot.exchange = Paged(rows)
+    result = asyncio.run(bot.candles("BTC/USDT:USDT", "1d"))
+    assert len(result) == 199
+    assert result.timestamp.iloc[-1] == rows[-2][0]
