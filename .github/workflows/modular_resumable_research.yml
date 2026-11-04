@@ -110,8 +110,26 @@ jobs:
           repository: ${{ github.repository }}
           path: checkpoint
 
+      - name: Verify restored checkpoint belongs to this exact batch
+        id: resume_check
+        env:
+          EXPECTED_SYMBOLS: ${{ matrix.symbols }}
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          from pathlib import Path
+          path = Path("checkpoint/BATCH_COMPLETE.json")
+          reuse = False
+          if path.exists():
+              saved = json.loads(path.read_text())
+              expected = os.environ["EXPECTED_SYMBOLS"].split(",")
+              reuse = saved.get("status") == "download_validated_and_backtested" and saved.get("symbols") == expected
+          print("reuse=" + str(reuse).lower())
+          print("Restoring completed checkpoint." if reuse else "No matching completed checkpoint; this batch will run.")
+          PY
+
       - name: Install dependencies
-        if: ${{ !hashFiles('checkpoint/BATCH_COMPLETE.json') }}
+        if: ${{ steps.resume_check.outputs.reuse != 'true' }}
         run: pip install -r requirements.txt
 
       - name: Download this small market batch
