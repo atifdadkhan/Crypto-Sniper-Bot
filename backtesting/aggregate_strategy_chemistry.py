@@ -33,23 +33,50 @@ def main():
     root, output = Path(args.input_dir), Path(args.output_dir)
     output.mkdir(parents=True, exist_ok=True)
     summary, trade_frames, offsets = {}, [], []
-    for batch in sorted(p for p in root.glob("at-trendhive-chemistry-batch-*") if p.is_dir()):
+    duplicate_rows = []
+    # Batch market lists can overlap when the exchange universe contains repeated
+    # contracts. Keep the earliest source offset deterministically so a market's
+    # trades are never counted twice in pooled OOS statistics.
+    batch_inputs = []
+    for batch in (p for p in root.glob("at-trendhive-chemistry-batch-*") if p.is_dir()):
         offset_path = batch / "batch_offset.json"
         summary_path = batch / "strategy_chemistry_summary.json"
-        trades_path = batch / "strategy_chemistry_trades.csv"
         if not offset_path.is_file() or not summary_path.is_file():
             continue
         meta = json.loads(offset_path.read_text(encoding="utf-8"))
-        offsets.append(int(meta["offset"]))
+        batch_inputs.append((int(meta["offset"]), batch, meta, summary_path))
+
+    seen_symbols = {}
+    for offset, batch, meta, summary_path in sorted(batch_inputs, key=lambda item: (item[0], item[1].name)):
+        offsets.append(offset)
         part = json.loads(summary_path.read_text(encoding="utf-8"))
-        for symbol, result in part.items():
-            if symbol in summary:
-                raise RuntimeError(f"Duplicate symbol across chemistry batches: {symbol}")
-            summary[symbol] = result
+        if not isinstance(part, dict):
+            raise RuntimeError(f"Invalid strategy chemistry summary in {batch.name}: expected an object")
+
+        keep_symbols = set()
+        for symbol in sorted(part):
+            if symbol in seen_symbols:
+                duplicate_rows.append({
+                    "symbol": symbol,
+                    "kept_offset": seen_symbols[symbol],
+                    "skipped_offset": offset,
+                    "kept_batch": f"at-trendhive-chemistry-batch-{seen_symbols[symbol]}",
+                    "skipped_batch": batch.name,
+                })
+            else:
+                seen_symbols[symbol] = offset
+                summary[symbol] = part[symbol]
+                keep_symbols.add(symbol)
+
+        trades_path = batch / "strategy_chemistry_trades.csv"
         if trades_path.is_file():
             trades = pd.read_csv(trades_path)
             if not trades.empty:
-                trade_frames.append(trades)
+                if "symbol" not in trades.columns:
+                    raise RuntimeError(f"Trade file in {batch.name} is missing required 'symbol' column")
+                trades = trades[trades["symbol"].astype(str).isin(keep_symbols)].copy()
+                if not trades.empty:
+                    trade_frames.append(trades)
 
     offsets = sorted(set(offsets))
     if not offsets:
@@ -139,7 +166,7 @@ def main():
         "Pooled rankings are chronological trade-level R summaries, not capital-weighted portfolio drawdowns.",
         "Fixed strategy combinations; first 60% in-sample and final 40% out-of-sample per contiguous segment.",
         "Aggregate screening requires at least 20 OOS trades across at least 5 markets.",
-        "Historical perpetual funding is not included. Results are research-only, not live approval.", "",
+        "Duplicate canonical symbols are assigned to the earliest numeric source batch; later copies and their trades are excluded.",\n        "See strategy_chemistry_duplicate_symbols.csv for the exact duplicate audit trail.",\n        "Historical perpetual funding is not included. Results are research-only, not live approval.", "",
         "| Asset class | TF | Strategy | Markets | OOS trades | PF | Net R | Max DD R | Status |",
         "|---|---|---|---:|---:|---:|---:|---:|---|",
     ]
@@ -154,7 +181,7 @@ def main():
     )
     print(f"Completed batches: {offsets}")
     print(f"Missing batches: {missing}")
-    print(f"Markets analysed: {len(summary)}")
+    print(f"Markets analysed after de-duplication: {len(summary)}")\n    print(f"Duplicate market entries skipped: {len(duplicate_rows)}")
     print(aggregate.to_string(index=False) if not aggregate.empty else "No OOS trades available for ranking.")
 
 
