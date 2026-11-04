@@ -30,6 +30,22 @@ def signal_text(signal, risk_percent=None, max_notional=None):
             f"<i>Signals only — all trades and exits are manual.</i>"
         )
 
+    if getattr(signal, "strategy_id", "CORE_15M") == "SLOW_4H":
+        return (
+            f"<b>A&amp;T TRENDHIVE  |  {direction}</b>\n"
+            f"<b>{escape(signal.symbol)}</b>\n"
+            f"🧠 Strategy: <b>4H Slow Momentum Breakout</b>\n"
+            f"🧪 Experimental continuation signal | 4H\n"
+            f"🎯 Entry: <code>{price(signal.entry)}</code>\n"
+            f"🛑 Stop Loss (2.5 ATR): <code>{price(signal.stop_loss)}</code>\n"
+            f"🏆 Target (3R): <code>{price(signal.tp2)}</code>\n"
+            f"📏 SL distance: {float(signal.risk_distance_pct):.2f}% of position\n"
+            f"⏳ Review exit after 10 days; no auto exit/position tracking.\n"
+            f"💡 EMA120/EMA300 trend + 36-candle breakout; ADX/volume confirmed.\n"
+            f"⚠️ Experimental; profits are not assured. Skip stale entries.\n"
+            f"<i>Manual signals only — size your position to your loss limit.</i>"
+        )
+
     strength = "Strong" if signal.score >= 9 else "Good"
     if signal.setup == "Pullback" and signal.side == "LONG":
         reason = "Price pulled back and buyers stepped in."
@@ -64,7 +80,7 @@ def help_text():
         "/settings — current scanner settings\n"
         "/history — delivered signals\n"
         "/help — commands\n\n"
-        "Dual engines: 15m Pullback/Retest + experimental 4H Relative Strength.\n"
+        "Dual engines: 15m Pullback/Retest + 4H Relative Strength / Slow Momentum.\n"
         "Markets: Bitget USDT-margined perpetual swaps. LONG/SHORT alerts only. "
         "No automatic trading or order placement."
     )
