@@ -126,6 +126,8 @@ jobs:
             --min-quote-volume 500000 \
             --absolute-min-quote-volume 250000 \
             --max-symbols 0 \
+            --candidate-offset "${{ matrix.offset }}" \
+            --candidate-limit 10 \
             --out data
 
       - name: Run deterministic tests
