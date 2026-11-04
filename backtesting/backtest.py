@@ -11,6 +11,7 @@ import pandas as pd
 
 from indicators import enrich, trend
 from strategy import _candidate
+from macro_policy import direction_policy
 from backtesting.data_loader import load_symbol_folder
 
 TFS = ("15m", "1h", "4h", "1d")
@@ -44,6 +45,19 @@ def macro_at(prepared, at_ns):
     return "NEUTRAL"
 
 
+def _snapshot_at(prepared, at_ns):
+    row = last_closed(prepared["4h"], at_ns)
+    if row is None:
+        return "UNKNOWN", None
+    frame, close_ns = prepared["4h"]
+    idx = int(np.searchsorted(close_ns, at_ns, side="right") - 1)
+    if idx < 6:
+        return macro_at(prepared, at_ns), None
+    earlier = float(frame.iloc[idx - 6].close)
+    roc = (100 * (float(row.close) / earlier - 1)) if earlier > 0 else None
+    return macro_at(prepared, at_ns), roc
+
+
 def make_signal(symbol, target, btc, eth, i):
     fast = target["15m"][0]
     row15 = fast.iloc[i]
@@ -51,24 +65,40 @@ def make_signal(symbol, target, btc, eth, i):
     rows = {tf: last_closed(target[tf], signal_close_ns) for tf in TFS}
     if any(row is None for row in rows.values()):
         return None
-    btc_t, eth_t = macro_at(btc, signal_close_ns), macro_at(eth, signal_close_ns)
+    btc_t, btc_roc = _snapshot_at(btc, signal_close_ns)
+    eth_t, eth_roc = _snapshot_at(eth, signal_close_ns)
+    target_h4, h4_close_ns = target["4h"]
+    h4_idx = int(np.searchsorted(h4_close_ns, signal_close_ns, side="right") - 1)
+    if h4_idx < 6:
+        return None
+    older_close = float(target_h4.iloc[h4_idx - 6].close)
+    if older_close <= 0:
+        return None
+    symbol_roc = 100 * (float(rows["4h"].close) / older_close - 1)
     candidates = []
     for side in ("LONG", "SHORT"):
         wanted = "BULLISH" if side == "LONG" else "BEARISH"
         opposite = "BEARISH" if side == "LONG" else "BULLISH"
         if trend(rows["1h"]) != wanted or trend(rows["4h"]) != wanted or trend(rows["1d"]) == opposite:
             continue
-        if btc_t == opposite or eth_t == opposite:
-            continue
         # No historical live quote exists; the signal candle close is the proxy.
         sig = _candidate(rows["15m"], side, float(rows["15m"].close))
-        if sig is None or sig.score < 7:
+        if sig is None:
             continue
-        sig.symbol = symbol
-        sig.timestamp = str(pd.Timestamp(row15.timestamp) + pd.Timedelta(minutes=15))
         if btc_t == wanted and eth_t == wanted:
             sig.score = min(10, sig.score + 1)
             sig.reasons.append("BTC and ETH support the direction")
+        allowed, independent = direction_policy(
+            side, btc_t, eth_t, sig.score, symbol_roc, btc_roc,
+            eth_roc, rows["4h"].adx,
+        )
+        if not allowed or sig.score < 7:
+            continue
+        sig.counter_macro = bool(independent)
+        if independent:
+            sig.reasons.append("Strong independent 4H trend despite BTC/ETH opposition")
+        sig.symbol = symbol
+        sig.timestamp = str(pd.Timestamp(row15.timestamp) + pd.Timedelta(minutes=15))
         candidates.append(sig)
     return max(candidates, key=lambda s: s.score) if candidates else None
 
