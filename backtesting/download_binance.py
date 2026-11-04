@@ -4,6 +4,7 @@ Research only: public market data, no API keys, no order/trading endpoints.
 """
 import argparse
 import json
+import shutil
 import time
 from pathlib import Path
 
@@ -83,6 +84,9 @@ def fetch_history(exchange, symbol, timeframe, days):
     expected_start = pd.Timestamp((since // step) * step, unit="ms", tz="UTC")
     if frame.timestamp.iloc[0] > expected_start + pd.Timedelta(days=max(3, days * 0.15)):
         raise RuntimeError(f"DATA INSUFFICIENT: requested history coverage not met ({frame.timestamp.iloc[0]})")
+    last_close = frame.timestamp.iloc[-1] + pd.to_timedelta(step, unit="ms")
+    if pd.Timestamp.now(tz="UTC") - last_close > pd.to_timedelta(step * 2, unit="ms"):
+        raise RuntimeError(f"DATA INSUFFICIENT: latest {timeframe} candle is stale ({last_close})")
     stamps = pd.DatetimeIndex(frame.timestamp).asi8
     gaps = int(((stamps[1:] - stamps[:-1]) != step * 1_000_000).sum())
     return frame, gaps
@@ -117,15 +121,25 @@ def main():
                 market = exchange.market(symbol)
                 folder_name = str(market.get("base") or symbol.split("/")[0]).upper() + "USDT"
                 folder = root / folder_name
-                folder.mkdir(parents=True, exist_ok=True)
-                for tf in TIMEFRAMES:
-                    frame, gaps = fetch_history(exchange, symbol, tf, args.days)
-                    frame.to_csv(folder / f"{tf}.csv", index=False)
-                    item["candles"][tf] = {
-                        "count": len(frame), "gap_count": gaps,
-                        "first_timestamp": str(frame.timestamp.iloc[0]),
-                        "last_timestamp": str(frame.timestamp.iloc[-1]),
-                    }
+                staged = root / f".staging_{folder_name}"
+                if staged.exists():
+                    shutil.rmtree(staged)
+                staged.mkdir(parents=True, exist_ok=True)
+                try:
+                    for tf in TIMEFRAMES:
+                        frame, gaps = fetch_history(exchange, symbol, tf, args.days)
+                        frame.to_csv(staged / f"{tf}.csv", index=False)
+                        item["candles"][tf] = {
+                            "count": len(frame), "gap_count": gaps,
+                            "first_timestamp": str(frame.timestamp.iloc[0]),
+                            "last_timestamp": str(frame.timestamp.iloc[-1]),
+                        }
+                    if folder.exists():
+                        shutil.rmtree(folder)
+                    staged.replace(folder)
+                except Exception:
+                    shutil.rmtree(staged, ignore_errors=True)
+                    raise
                 manifest["downloaded"].append(item)
                 print(f"VALIDATED {symbol}: all four timeframes")
             except Exception as exc:
