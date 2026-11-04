@@ -185,11 +185,19 @@ def main():
         raise RuntimeError("Refusing non-perpetual dataset")
 
     strategies = [BASELINE, *COMBINATIONS]
+    asset_classes = {
+        str(item.get("symbol", "")).replace("/", "").replace(":USDT", ""):
+            item.get("asset_class", "crypto_or_unverified")
+        for item in manifest.get("discovered_markets", [])
+    }
     summary, all_trades = {}, []
     folders = sorted(p for p in root.iterdir() if p.is_dir() and p.name.endswith("USDT"))
     for folder in folders:
         frames, data_status = load_market_timeframes(folder)
-        summary[folder.name] = {"data": data_status, "strategies": {}}
+        summary[folder.name] = {
+            "asset_class": asset_classes.get(folder.name, "crypto_or_unverified"),
+            "data": data_status, "strategies": {},
+        }
         for timeframe in ALL_TIMEFRAMES:
             if timeframe not in frames:
                 continue
@@ -242,7 +250,8 @@ def main():
                 oos = record["out_of_sample"]
                 ins = record["in_sample"]
                 rows.append({
-                    "symbol": symbol, "timeframe": timeframe, "strategy": strategy_name,
+                    "symbol": symbol, "asset_class": data["asset_class"],
+                    "timeframe": timeframe, "strategy": strategy_name,
                     "research_status": record["research_status"],
                     "in_sample_trades": ins.get("trades", 0),
                     "oos_trades": oos.get("trades", 0),
@@ -259,6 +268,10 @@ def main():
             ascending=[True, False, False], na_position="last",
         )
     leaderboard.to_csv(output / "strategy_chemistry_leaderboard.csv", index=False)
+    if not leaderboard.empty:
+        for asset_class, label in (("crypto_or_unverified", "crypto"), ("tokenized_equity", "tokenized_equities")):
+            subset = leaderboard[leaderboard["asset_class"] == asset_class]
+            subset.to_csv(output / f"{label}_leaderboard.csv", index=False)
     report = [
         "# A&T TrendHive — Strategy Chemistry Research", "",
         f"Markets: {len(folders)}",
@@ -267,6 +280,7 @@ def main():
         "Each contiguous segment: first 60% in-sample, final 40% out-of-sample.",
         "Entries use the next candle open after a completed signal candle.",
         "Fixed combinations; no parameter optimisation. Results are not a probability forecast.",
+        "Crypto/unverified assets and tokenized equities are classified separately in the leaderboard exports.",
         "Historical funding is not included; perpetual results remain experimental.",
         "No exchange orders are sent. No strategy is auto-approved for live Telegram signals.", "",
         "| Symbol | TF | Strategy | OOS trades | OOS PF | OOS Net R | OOS Max DD R | Status |",
