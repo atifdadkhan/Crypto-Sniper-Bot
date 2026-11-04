@@ -67,7 +67,19 @@ class MarketData:
             raise ValueError(f"STALE DATA: {symbol} {timeframe} last closed candle is old")
         recent_ts = df.timestamp.tail(100).astype("int64").diff().dropna()
         if (recent_ts != interval).any():
-            raise ValueError(f"DATA INSUFFICIENT: candle gaps in {symbol} {timeframe}")
+            raise ValueError(f"DATA INSUFFICIENT: missing/duplicate {timeframe} candles for {symbol}")
+        numeric = df[["open", "high", "low", "close", "volume"]].apply(
+            pd.to_numeric, errors="coerce"
+        )
+        if numeric.isna().any().any() or not numeric.map(math.isfinite).all().all():
+            raise ValueError(f"DATA INSUFFICIENT: invalid numeric OHLCV for {symbol}")
+        if ((numeric[["open", "high", "low", "close"]] <= 0).any().any()
+                or (numeric["volume"] < 0).any()):
+            raise ValueError(f"DATA INSUFFICIENT: invalid OHLCV values for {symbol}")
+        if ((numeric["high"] < numeric[["open", "low", "close"]].max(axis=1)) |
+                (numeric["low"] > numeric[["open", "high", "close"]].min(axis=1))).any():
+            raise ValueError(f"DATA INSUFFICIENT: invalid OHLC geometry for {symbol}")
+        df[numeric.columns] = numeric
         return df.reset_index(drop=True)
 
 
