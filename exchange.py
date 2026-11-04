@@ -25,7 +25,7 @@ class MarketData:
 
     async def top_symbols(self, top_n=20, min_quote_volume=500000):
         symbols = [s for s, m in self.markets.items()
-                   if m.get("active") is True and m.get("swap") and m.get("linear")
+                   if m.get("active") is not False and m.get("swap") and m.get("linear")
                    and m.get("quote") == "USDT" and m.get("settle") == "USDT"]
         if not symbols:
             return []
@@ -84,17 +84,24 @@ class MarketData:
         if not math.isfinite(last) or last <= 0:
             raise ValueError(f"Invalid live quote for {symbol}")
         stamp = ticker.get("timestamp")
-        if stamp:
-            age_ms = int(time.time() * 1000) - int(stamp)
+        if stamp is not None:
+            try:
+                age_ms = int(time.time() * 1000) - int(stamp)
+            except (TypeError, ValueError):
+                raise ValueError(f"INVALID QUOTE TIMESTAMP: {symbol}")
             if age_ms > 90_000 or age_ms < -10_000:
                 raise ValueError(f"STALE DATA: live quote for {symbol}")
         bid, ask = ticker.get("bid"), ticker.get("ask")
-        if bid and ask:
+        try:
             bid, ask = float(bid), float(ask)
-            if bid > 0 and ask >= bid:
-                spread_pct = (ask - bid) / ((ask + bid) / 2) * 100
-                if spread_pct > 0.15:
-                    raise ValueError(f"WIDE SPREAD: {symbol} spread {spread_pct:.3f}%")
+            spread_pct = (ask - bid) / ((ask + bid) / 2) * 100
+        except (ValueError, TypeError, ZeroDivisionError):
+            bid, ask, spread_pct = 0.0, 0.0, float("inf")
+        if bid > 0 and ask >= bid and spread_pct > 0.15:
+            raise ValueError(f"WIDE SPREAD: {symbol} spread {spread_pct:.3f}%")
+        # CCXT permits a missing ticker timestamp; require a valid book quote then.
+        if stamp is None and (bid <= 0 or ask < bid or not math.isfinite(spread_pct)):
+            raise ValueError(f"UNVERIFIED QUOTE: {symbol} no timestamp or valid bid/ask")
         return last
 
     async def multi_timeframe(self, symbol, semaphore):
