@@ -68,11 +68,19 @@ jobs:
             cp -a checkpoint/data/. data/
           fi
           cp "$manifest" data/download_manifest.json
-          python -m backtesting.strategy_chemistry_runner \
-            --data-dir data \
-            --fee-slippage-pct "$FEE_SLIPPAGE_PCT" \
-            --minimum-oos-trades 20 \
-            --output-dir backtest_results/strategy_chemistry
+          eligible_count=$(python -c 'import json; print(len(json.load(open("data/download_manifest.json")).get("downloaded", [])))')
+          mkdir -p backtest_results/strategy_chemistry
+          if [ "$eligible_count" -eq 0 ]; then
+            echo "Batch ${BATCH_OFFSET} has no fully validated symbols; recording an empty completed batch."
+            printf '{}' > backtest_results/strategy_chemistry/strategy_chemistry_summary.json
+            printf 'symbol,side,entry_time,net_r,strategy,timeframe,sample_period,asset_class\n' > backtest_results/strategy_chemistry/strategy_chemistry_trades.csv
+          else
+            python -m backtesting.strategy_chemistry_runner \
+              --data-dir data \
+              --fee-slippage-pct "$FEE_SLIPPAGE_PCT" \
+              --minimum-oos-trades 20 \
+              --output-dir backtest_results/strategy_chemistry
+          fi
           python - <<'PY'
           import json, os
           from pathlib import Path
