@@ -160,13 +160,16 @@ def main():
         f"Source Bitget run ID: {args.source_run_id or 'not supplied'}",
         f"Completed chemistry batches: {offsets}",
         f"Missing chemistry batches: {missing}",
-        f"Markets analysed: {len(summary)}",
-        f"Out-of-sample trade rows: {len(oos_trades)}",
+        f"Markets analysed after deterministic de-duplication: {len(summary)}",
+        f"Duplicate market entries skipped: {len(duplicate_rows)}",
+        f"Out-of-sample trade rows after de-duplication: {len(oos_trades)}",
         "Only complete symbols listed as downloaded in each batch manifest are eligible.",
         "Pooled rankings are chronological trade-level R summaries, not capital-weighted portfolio drawdowns.",
         "Fixed strategy combinations; first 60% in-sample and final 40% out-of-sample per contiguous segment.",
         "Aggregate screening requires at least 20 OOS trades across at least 5 markets.",
-        "Duplicate canonical symbols are assigned to the earliest numeric source batch; later copies and their trades are excluded.",\n        "See strategy_chemistry_duplicate_symbols.csv for the exact duplicate audit trail.",\n        "Historical perpetual funding is not included. Results are research-only, not live approval.", "",
+        "Duplicate canonical symbols are assigned to the earliest numeric source batch; later copies and their trades are excluded.",
+        "See strategy_chemistry_duplicate_symbols.csv for the exact duplicate audit trail.",
+        "See strategy_chemistry_duplicate_symbols.csv for the exact duplicate audit trail.",\n        "Historical perpetual funding is not included. Results are research-only, not live approval.", "",
         "| Asset class | TF | Strategy | Markets | OOS trades | PF | Net R | Max DD R | Status |",
         "|---|---|---|---:|---:|---:|---:|---:|---|",
     ]
@@ -181,7 +184,8 @@ def main():
     )
     print(f"Completed batches: {offsets}")
     print(f"Missing batches: {missing}")
-    print(f"Markets analysed after de-duplication: {len(summary)}")\n    print(f"Duplicate market entries skipped: {len(duplicate_rows)}")
+    print(f"Markets analysed after de-duplication: {len(summary)}")
+    print(f"Duplicate market entries skipped: {len(duplicate_rows)}")
     print(aggregate.to_string(index=False) if not aggregate.empty else "No OOS trades available for ranking.")
 
 
