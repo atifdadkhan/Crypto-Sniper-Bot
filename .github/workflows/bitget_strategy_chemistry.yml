@@ -1,0 +1,144 @@
+name: Bitget Strategy Chemistry Research
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Completed or partially completed Bitget Full-Market Resumable Research run ID
+        required: true
+        default: "41805382357"
+        type: string
+      fee_slippage_pct:
+        description: Estimated round-trip fee plus slippage (% of notional)
+        required: true
+        default: "0.12"
+        type: string
+  workflow_run:
+    workflows: ["Bitget Full-Market Resumable Research"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  chemistry-batches:
+    if: ${{ github.event_name == 'workflow_run' || inputs.source_run_id != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        offset: [0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300, 320, 340, 360, 380, 400, 420, 440, 460, 480, 500, 520, 540, 560, 580, 600, 620, 640, 660, 680, 700, 720, 740, 760, 780]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Restore this Bitget data batch
+        uses: actions/download-artifact@v4
+        with:
+          name: at-trendhive-data-batch-${{ matrix.offset }}
+          path: checkpoint
+          run-id: ${{ github.event.workflow_run.id || inputs.source_run_id }}
+          github-token: ${{ github.token }}
+        continue-on-error: true
+      - name: Run strategy combinations for this restored batch
+        env:
+          BATCH_OFFSET: ${{ matrix.offset }}
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id || inputs.source_run_id }}
+          FEE_SLIPPAGE_PCT: ${{ github.event.inputs.fee_slippage_pct || inputs.fee_slippage_pct || '0.12' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="checkpoint/batch_manifests/manifest_${BATCH_OFFSET}.json"
+          if [ ! -f "$manifest" ]; then
+            echo "No source artifact for batch ${BATCH_OFFSET}; leaving it unprocessed."
+            exit 0
+          fi
+          mkdir -p data
+          if [ -d checkpoint/data ]; then
+            cp -a checkpoint/data/. data/
+          fi
+          cp "$manifest" data/download_manifest.json
+          eligible_count=$(python -c 'import json; print(len(json.load(open("data/download_manifest.json")).get("downloaded", [])))')
+          mkdir -p backtest_results/strategy_chemistry
+          if [ "$eligible_count" -eq 0 ]; then
+            echo "Batch ${BATCH_OFFSET} has no fully validated symbols; recording an empty completed batch."
+            printf '{}' > backtest_results/strategy_chemistry/strategy_chemistry_summary.json
+            printf 'symbol,side,entry_time,net_r,strategy,timeframe,sample_period,asset_class\n' > backtest_results/strategy_chemistry/strategy_chemistry_trades.csv
+          else
+            python -m backtesting.strategy_chemistry_runner \
+              --data-dir data \
+              --fee-slippage-pct "$FEE_SLIPPAGE_PCT" \
+              --minimum-oos-trades 20 \
+              --output-dir backtest_results/strategy_chemistry
+          fi
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          output = Path("backtest_results/strategy_chemistry")
+          manifest = json.loads(Path("data/download_manifest.json").read_text())
+          meta = {
+              "offset": int(os.environ["BATCH_OFFSET"]),
+              "source_run_id": os.environ["SOURCE_RUN_ID"],
+              "downloaded_symbols": [x.get("symbol") for x in manifest.get("downloaded", [])],
+              "eligible_count": len(manifest.get("downloaded", [])),
+          }
+          (output / "batch_offset.json").write_text(json.dumps(meta, indent=2))
+          print(f"Completed strategy chemistry for batch {meta['offset']}: {meta['eligible_count']} eligible symbols")
+          PY
+      - name: Upload strategy chemistry batch result
+        if: success() && hashFiles('backtest_results/strategy_chemistry/strategy_chemistry_summary.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: at-trendhive-chemistry-batch-${{ matrix.offset }}
+          path: backtest_results/strategy_chemistry/
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: chemistry-batches
+    if: ${{ always() && needs.chemistry-batches.result != 'cancelled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Restore completed chemistry batch results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: at-trendhive-chemistry-batch-*
+          path: batch_results
+        continue-on-error: true
+      - name: Build combined OOS strategy leaderboard
+        env:
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id || inputs.source_run_id }}
+        run: |
+          python -m backtesting.aggregate_strategy_chemistry \
+            --input-dir batch_results \
+            --output-dir backtest_results/strategy_chemistry \
+            --minimum-oos-trades 20 \
+            --source-run-id "$SOURCE_RUN_ID"
+      - name: Upload combined strategy chemistry report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: at-trendhive-strategy-chemistry-${{ github.event.workflow_run.id || inputs.source_run_id }}
+          path: backtest_results/strategy_chemistry/
+          if-no-files-found: warn
+          retention-days: 90
