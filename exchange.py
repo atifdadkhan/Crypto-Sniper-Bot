@@ -25,8 +25,8 @@ class MarketData:
 
     async def top_symbols(self, top_n=20, min_quote_volume=500000):
         symbols = [s for s, m in self.markets.items()
-                   if m.get("active") is not False and m.get("swap") and m.get("linear")
-                   and m.get("quote") == "USDT"]
+                   if m.get("active") is True and m.get("swap") and m.get("linear")
+                   and m.get("quote") == "USDT" and m.get("settle") == "USDT"]
         if not symbols:
             return []
         tickers = await self.exchange.fetch_tickers(symbols)
@@ -49,24 +49,24 @@ class MarketData:
 
     async def candles(self, symbol, timeframe, limit=140):
         raw = await self.exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
-        if not raw or len(raw) < 82:
+        if not raw or len(raw) < 102:
             raise ValueError(f"DATA INSUFFICIENT: {symbol} {timeframe} has too few candles")
         # Ignore the still-forming candle; never generate a signal from an open candle.
         closed = raw[:-1]
-        if len(closed) < 80:
+        if len(closed) < 100:
             raise ValueError(f"DATA INSUFFICIENT: {symbol} {timeframe} closed candles")
         df = pd.DataFrame(closed, columns=["timestamp", "open", "high", "low", "close", "volume"])
         df = df.sort_values("timestamp").drop_duplicates("timestamp", keep="last")
-        if len(df) < 80:
+        if len(df) < 100:
             raise ValueError(f"DATA INSUFFICIENT: duplicate {timeframe} candles for {symbol}")
         # Reject stale feeds and major holes in the recent candle sequence.
         now_ms = int(time.time() * 1000)
         interval = TIMEFRAMES[timeframe]
         last_ts = int(df.timestamp.iloc[-1])
-        if now_ms - last_ts > interval * 2.5:
+        if last_ts + interval > now_ms + 30_000 or now_ms - (last_ts + interval) > interval * 1.2:
             raise ValueError(f"STALE DATA: {symbol} {timeframe} last closed candle is old")
-        recent_ts = df.timestamp.tail(80).astype("int64").diff().dropna()
-        if (recent_ts > interval * 2.5).any():
+        recent_ts = df.timestamp.tail(100).astype("int64").diff().dropna()
+        if (recent_ts != interval).any():
             raise ValueError(f"DATA INSUFFICIENT: candle gaps in {symbol} {timeframe}")
         return df.reset_index(drop=True)
 
