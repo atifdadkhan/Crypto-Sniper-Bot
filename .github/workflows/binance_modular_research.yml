@@ -31,7 +31,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: binance-modular-research-\${{ github.ref }}-\${{ inputs.market_scope }}
+  group: binance-modular-research-${{ github.ref }}-${{ inputs.market_scope }}
   cancel-in-progress: false
 
 jobs:
@@ -39,8 +39,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     outputs:
-      matrix: \${{ steps.build.outputs.matrix }}
-      count: \${{ steps.build.outputs.count }}
+      matrix: ${{ steps.build.outputs.matrix }}
+      count: ${{ steps.build.outputs.count }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -52,8 +52,8 @@ jobs:
       - name: Discover Binance Spot and/or USD-M markets once
         id: build
         env:
-          SCOPE: \${{ inputs.market_scope }}
-          MIN_VOLUME: \${{ inputs.min_quote_volume }}
+          SCOPE: ${{ inputs.market_scope }}
+          MIN_VOLUME: ${{ inputs.min_quote_volume }}
           BATCH_SIZE: "10"
         run: |
           python - <<'PY' >> "$GITHUB_OUTPUT"
@@ -93,13 +93,13 @@ jobs:
 
   batch_research:
     needs: discover
-    if: \${{ needs.discover.result == 'success' }}
+    if: ${{ needs.discover.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 330
     strategy:
       fail-fast: false
       max-parallel: 4
-      matrix: \${{ fromJSON(needs.discover.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -108,21 +108,21 @@ jobs:
           cache: pip
 
       - name: Restore prior batch artifact if requested
-        if: \${{ inputs.resume_from_run_id != '0' }}
+        if: ${{ inputs.resume_from_run_id != '0' }}
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
-          name: binance-\${{ matrix.market_type }}-batch-\${{ matrix.batch }}
-          run-id: \${{ inputs.resume_from_run_id }}
-          github-token: \${{ secrets.GITHUB_TOKEN }}
-          repository: \${{ github.repository }}
+          name: binance-${{ matrix.market_type }}-batch-${{ matrix.batch }}
+          run-id: ${{ inputs.resume_from_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
           path: checkpoint
 
       - name: Verify checkpoint identity and restore completed outputs
         id: resume_check
         env:
-          EXPECTED_SYMBOLS: \${{ matrix.symbols }}
-          EXPECTED_TYPE: \${{ matrix.market_type }}
+          EXPECTED_SYMBOLS: ${{ matrix.symbols }}
+          EXPECTED_TYPE: ${{ matrix.market_type }}
         run: |
           python - <<'PY' >> "$GITHUB_OUTPUT"
           import json, os, shutil
@@ -146,39 +146,39 @@ jobs:
           PY
 
       - name: Install dependencies
-        if: \${{ steps.resume_check.outputs.reuse != 'true' }}
+        if: ${{ steps.resume_check.outputs.reuse != 'true' }}
         run: pip install -r requirements.txt
 
       - name: Download and validate this independent Binance batch
-        if: \${{ steps.resume_check.outputs.reuse != 'true' }}
+        if: ${{ steps.resume_check.outputs.reuse != 'true' }}
         env:
-          SYMBOLS: \${{ matrix.symbols }}
-          MARKET_TYPE: \${{ matrix.market_type }}
+          SYMBOLS: ${{ matrix.symbols }}
+          MARKET_TYPE: ${{ matrix.market_type }}
         run: |
           python -m backtesting.download_binance \
             --market-type "$MARKET_TYPE" \
             --symbols "$SYMBOLS" \
-            --days "\${{ inputs.days }}" \
+            --days "${{ inputs.days }}" \
             --out data
 
       - name: Run deterministic repository tests
-        if: \${{ steps.resume_check.outputs.reuse != 'true' }}
+        if: ${{ steps.resume_check.outputs.reuse != 'true' }}
         run: python -m pytest -q
 
       - name: Backtest all engines immediately after each batch download
-        if: \${{ steps.resume_check.outputs.reuse != 'true' }}
+        if: ${{ steps.resume_check.outputs.reuse != 'true' }}
         run: |
           python -m backtesting.full_market_runner \
             --data-dir data \
-            --fee-slippage-pct "\${{ inputs.fee_slippage_pct }}" \
+            --fee-slippage-pct "${{ inputs.fee_slippage_pct }}" \
             --minimum-trades 30
 
       - name: Mark this exact batch complete
-        if: \${{ steps.resume_check.outputs.reuse != 'true' && success() }}
+        if: ${{ steps.resume_check.outputs.reuse != 'true' && success() }}
         env:
-          BATCH: \${{ matrix.batch }}
-          MARKET_TYPE: \${{ matrix.market_type }}
-          SYMBOLS: \${{ matrix.symbols }}
+          BATCH: ${{ matrix.batch }}
+          MARKET_TYPE: ${{ matrix.market_type }}
+          SYMBOLS: ${{ matrix.symbols }}
         run: |
           mkdir -p checkpoint
           cp -a data backtest_results checkpoint/
@@ -197,7 +197,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: binance-\${{ matrix.market_type }}-batch-\${{ matrix.batch }}
+          name: binance-${{ matrix.market_type }}-batch-${{ matrix.batch }}
           path: |
             checkpoint/
             data/
