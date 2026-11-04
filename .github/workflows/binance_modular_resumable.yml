@@ -1,0 +1,190 @@
+name: Binance Modular Resumable Research
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: Historical lookback days (120-2000)
+        required: true
+        default: "365"
+        type: string
+      min_quote_volume:
+        description: Minimum 24h USDT quote turnover
+        required: true
+        default: "1000000"
+        type: string
+      batch_size:
+        description: Symbols per independent batch
+        required: true
+        default: "10"
+        type: string
+      resume_run_id:
+        description: Optional prior run ID whose batch artifacts should be reused
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      spot_matrix: ${{ steps.matrix.outputs.spot_matrix }}
+      perp_matrix: ${{ steps.matrix.outputs.perp_matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Discover separate Binance universes
+        id: matrix
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, subprocess, sys
+          def discover(kind):
+              raw = subprocess.check_output([
+                  sys.executable, "backtesting/download_binance.py", "discover",
+                  "--market-type", kind,
+                  "--batch-size", "${{ inputs.batch_size }}",
+                  "--min-quote-volume", "${{ inputs.min_quote_volume }}"
+              ], text=True)
+              return json.loads(raw.strip().splitlines()[-1])["batches"]
+          spot, perp = discover("spot"), discover("usdt_perpetual")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write("spot_matrix=" + json.dumps({"include":[{"batch":i,"symbols":s} for i,s in enumerate(spot)]}) + "\n")
+              f.write("perp_matrix=" + json.dumps({"include":[{"batch":i,"symbols":s} for i,s in enumerate(perp)]}) + "\n")
+          print("Spot batches:", len(spot), "Perpetual batches:", len(perp))
+          PY
+
+  spot-batches:
+    needs: discover
+    if: ${{ fromJson(needs.discover.outputs.spot_matrix).include[0] != null }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJson(needs.discover.outputs.spot_matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Restore batch checkpoint from selected run
+        uses: actions/download-artifact@v4
+        with:
+          name: binance-spot-batch-${{ matrix.batch }}
+          path: checkpoint
+          run-id: ${{ inputs.resume_run_id || github.run_id }}
+          github-token: ${{ github.token }}
+        continue-on-error: true
+      - name: Verify checkpoint or download and test
+        shell: bash
+        env:
+          SYMBOLS_JSON: ${{ toJson(matrix.symbols) }}
+          DAYS: ${{ inputs.days }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, shutil, subprocess, sys
+          symbols=json.loads(os.environ["SYMBOLS_JSON"])
+          days=int(os.environ["DAYS"])
+          marker=pathlib.Path("checkpoint/BATCH_COMPLETE.json")
+          reusable=False
+          if marker.exists():
+              try:
+                  saved=json.loads(marker.read_text())
+                  reusable=(saved.get("market_type")=="spot" and saved.get("symbols")==symbols and saved.get("days")==days and pathlib.Path("checkpoint/data/download_manifest.json").is_file() and pathlib.Path("checkpoint/backtest_results/binance_strategy_summary.json").is_file())
+              except Exception: pass
+          if reusable:
+              shutil.copytree("checkpoint/data", "data", dirs_exist_ok=True)
+              shutil.copytree("checkpoint/backtest_results", "backtest_results", dirs_exist_ok=True)
+              print("Verified checkpoint restored")
+          else:
+              subprocess.check_call([sys.executable,"backtesting/download_binance.py","download",
+                  "--market-type","spot","--symbols",",".join(symbols),"--days","${{ inputs.days }}",
+                  "--out","data","--batch-id",str(os.environ.get("GITHUB_RUN_ID",""))])
+              subprocess.check_call([sys.executable,"backtesting/binance_batch_runner.py",
+                  "--data-dir","data","--market-type","spot","--output-dir","backtest_results"])
+              pathlib.Path("checkpoint").mkdir(exist_ok=True)
+              shutil.copytree("data","checkpoint/data",dirs_exist_ok=True)
+              shutil.copytree("backtest_results","checkpoint/backtest_results",dirs_exist_ok=True)
+              marker.write_text(json.dumps({"market_type":"spot","symbols":symbols,"days":days}))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binance-spot-batch-${{ matrix.batch }}
+          path: checkpoint/
+          retention-days: 90
+          if-no-files-found: error
+
+  perpetual-batches:
+    needs: discover
+    if: ${{ fromJson(needs.discover.outputs.perp_matrix).include[0] != null }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJson(needs.discover.outputs.perp_matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Restore batch checkpoint from selected run
+        uses: actions/download-artifact@v4
+        with:
+          name: binance-perpetual-batch-${{ matrix.batch }}
+          path: checkpoint
+          run-id: ${{ inputs.resume_run_id || github.run_id }}
+          github-token: ${{ github.token }}
+        continue-on-error: true
+      - name: Verify checkpoint or download and test
+        shell: bash
+        env:
+          SYMBOLS_JSON: ${{ toJson(matrix.symbols) }}
+          DAYS: ${{ inputs.days }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, shutil, subprocess, sys
+          symbols=json.loads(os.environ["SYMBOLS_JSON"])
+          days=int(os.environ["DAYS"])
+          marker=pathlib.Path("checkpoint/BATCH_COMPLETE.json")
+          reusable=False
+          if marker.exists():
+              try:
+                  saved=json.loads(marker.read_text())
+                  reusable=(saved.get("market_type")=="usdt_perpetual" and saved.get("symbols")==symbols and saved.get("days")==days and pathlib.Path("checkpoint/data/download_manifest.json").is_file() and pathlib.Path("checkpoint/backtest_results/binance_strategy_summary.json").is_file())
+              except Exception: pass
+          if reusable:
+              shutil.copytree("checkpoint/data", "data", dirs_exist_ok=True)
+              shutil.copytree("checkpoint/backtest_results", "backtest_results", dirs_exist_ok=True)
+              print("Verified checkpoint restored")
+          else:
+              subprocess.check_call([sys.executable,"backtesting/download_binance.py","download",
+                  "--market-type","usdt_perpetual","--symbols",",".join(symbols),"--days","${{ inputs.days }}",
+                  "--out","data","--batch-id",str(os.environ.get("GITHUB_RUN_ID",""))])
+              subprocess.check_call([sys.executable,"backtesting/binance_batch_runner.py",
+                  "--data-dir","data","--market-type","usdt_perpetual","--output-dir","backtest_results"])
+              pathlib.Path("checkpoint").mkdir(exist_ok=True)
+              shutil.copytree("data","checkpoint/data",dirs_exist_ok=True)
+              shutil.copytree("backtest_results","checkpoint/backtest_results",dirs_exist_ok=True)
+              marker.write_text(json.dumps({"market_type":"usdt_perpetual","symbols":symbols,"days":days}))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binance-perpetual-batch-${{ matrix.batch }}
+          path: checkpoint/
+          retention-days: 90
+          if-no-files-found: error
