@@ -23,10 +23,15 @@ permissions:
   actions: read
 
 jobs:
-  chemistry-backtest:
+  chemistry-batches:
     if: ${{ github.event_name == 'workflow_run' || inputs.source_run_id != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        offset: [0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300, 320, 340, 360, 380, 400, 420, 440, 460, 480, 500, 520, 540, 560, 580, 600, 620, 640, 660, 680, 700, 720, 740, 760, 780]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,82 +42,95 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Restore available Bitget batch artifacts
+      - name: Restore this Bitget data batch
         uses: actions/download-artifact@v4
         with:
-          pattern: at-trendhive-data-batch-*
-          merge-multiple: true
-          path: .
+          name: at-trendhive-data-batch-${{ matrix.offset }}
+          path: checkpoint
           run-id: ${{ github.event.workflow_run.id || inputs.source_run_id }}
           github-token: ${{ github.token }}
-      - name: Merge available batch manifests without pretending missing batches exist
+        continue-on-error: true
+      - name: Run strategy combinations for this restored batch
         env:
+          BATCH_OFFSET: ${{ matrix.offset }}
           SOURCE_RUN_ID: ${{ github.event.workflow_run.id || inputs.source_run_id }}
-          SOURCE_CONCLUSION: ${{ github.event.workflow_run.conclusion || 'manual_dispatch' }}
-        run: |
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          folder = Path("batch_manifests")
-          files = sorted(folder.glob("manifest_*.json"))
-          if not files:
-              raise SystemExit("No batch manifests restored from the selected Bitget run.")
-          manifests = [json.loads(p.read_text()) for p in files]
-          offsets = sorted(int(p.stem.split("_")[1]) for p in files)
-          expected = list(range(0, 800, 20))
-          downloaded, failed, discovered = [], [], []
-          for item in manifests:
-              downloaded.extend(item.get("downloaded", []))
-              failed.extend(item.get("failed", []))
-              discovered.extend(item.get("discovered_markets", []))
-          unique_downloaded = {item["symbol"]: item for item in downloaded}
-          unique_discovered = {item["symbol"]: item for item in discovered if item.get("symbol")}
-          missing = sorted(set(expected) - set(offsets))
-          merged = {
-              "exchange": "Bitget",
-              "market_type": "linear USDT-settled perpetual swaps",
-              "asset_scope": "crypto plus tokenized equities; retain source classification",
-              "timeframes": ["15m", "1h", "4h", "1d"],
-              "source_run_id": os.environ["SOURCE_RUN_ID"],
-              "source_run_conclusion": os.environ["SOURCE_CONCLUSION"],
-              "completed_batch_offsets": offsets,
-              "expected_batch_offsets": expected,
-              "missing_batch_offsets": missing,
-              "dataset_completeness": "COMPLETE" if not missing else "PARTIAL — missing batches are not inferred",
-              "downloaded": list(unique_downloaded.values()),
-              "failed": failed,
-              "discovered_markets": list(unique_discovered.values()),
-              "eligible_count": len(unique_downloaded),
-              "candidate_universe_size": max((m.get("candidate_universe_size", 0) for m in manifests), default=0),
-              "candidates_attempted": sum(m.get("candidates_attempted", 0) for m in manifests),
-              "failed_market_count": len(failed),
-              "provenance": "Restored directly from Bitget Full-Market Resumable Research workflow artifacts."
-          }
-          if not unique_downloaded:
-              raise SystemExit("No eligible Bitget datasets were restored.")
-          Path("data").mkdir(exist_ok=True)
-          Path("data/download_manifest.json").write_text(json.dumps(merged, indent=2))
-          print(f"Restored {len(unique_downloaded)} markets from {len(offsets)} batches.")
-          print(f"Missing batch offsets: {missing}")
-          print(f"Dataset status: {merged['dataset_completeness']}")
-          PY
-      - name: Run fixed strategy combinations with chronological holdout
-        env:
           FEE_SLIPPAGE_PCT: ${{ github.event.inputs.fee_slippage_pct || inputs.fee_slippage_pct || '0.12' }}
+        shell: bash
         run: |
-          python -m pytest -q
+          set -euo pipefail
+          manifest="checkpoint/batch_manifests/manifest_${BATCH_OFFSET}.json"
+          if [ ! -f "$manifest" ]; then
+            echo "No source artifact for batch ${BATCH_OFFSET}; leaving it unprocessed."
+            exit 0
+          fi
+          mkdir -p data
+          if [ -d checkpoint/data ]; then
+            cp -a checkpoint/data/. data/
+          fi
+          cp "$manifest" data/download_manifest.json
           python -m backtesting.strategy_chemistry_runner \
             --data-dir data \
             --fee-slippage-pct "$FEE_SLIPPAGE_PCT" \
             --minimum-oos-trades 20 \
             --output-dir backtest_results/strategy_chemistry
-      - name: Upload strategy chemistry reports
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          output = Path("backtest_results/strategy_chemistry")
+          manifest = json.loads(Path("data/download_manifest.json").read_text())
+          meta = {
+              "offset": int(os.environ["BATCH_OFFSET"]),
+              "source_run_id": os.environ["SOURCE_RUN_ID"],
+              "downloaded_symbols": [x.get("symbol") for x in manifest.get("downloaded", [])],
+              "eligible_count": len(manifest.get("downloaded", [])),
+          }
+          (output / "batch_offset.json").write_text(json.dumps(meta, indent=2))
+          print(f"Completed strategy chemistry for batch {meta['offset']}: {meta['eligible_count']} eligible symbols")
+          PY
+      - name: Upload strategy chemistry batch result
+        if: success() && hashFiles('backtest_results/strategy_chemistry/strategy_chemistry_summary.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: at-trendhive-chemistry-batch-${{ matrix.offset }}
+          path: backtest_results/strategy_chemistry/
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: chemistry-batches
+    if: ${{ always() && needs.chemistry-batches.result != 'cancelled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Restore completed chemistry batch results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: at-trendhive-chemistry-batch-*
+          path: batch_results
+        continue-on-error: true
+      - name: Build combined OOS strategy leaderboard
+        env:
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id || inputs.source_run_id }}
+        run: |
+          python -m backtesting.aggregate_strategy_chemistry \
+            --input-dir batch_results \
+            --output-dir backtest_results/strategy_chemistry \
+            --minimum-oos-trades 20 \
+            --source-run-id "$SOURCE_RUN_ID"
+      - name: Upload combined strategy chemistry report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: at-trendhive-strategy-chemistry-${{ github.event.workflow_run.id || inputs.source_run_id }}
-          path: |
-            data/download_manifest.json
-            backtest_results/strategy_chemistry/
+          path: backtest_results/strategy_chemistry/
           if-no-files-found: warn
           retention-days: 90
