@@ -27,6 +27,10 @@ on:
         description: "Legacy BTC/ETH funding sensitivity assumption (not historical funding)"
         required: true
         default: "0"
+      seed_artifact_run_id:
+        description: "Reuse a completed all-market data artifact from this workflow run (0 disables reuse)"
+        required: true
+        default: "41723310248"
   pull_request:
     branches: ["main"]
   push:
@@ -77,8 +81,37 @@ jobs:
             echo "Using the previously downloaded and validated BTC/ETH dataset."
           fi
 
+      - name: Reuse recovered all-market dataset
+        if: ${{ inputs.research_scope == 'all_markets' && inputs.seed_artifact_run_id != '0' }}
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: at-trendhive-all_markets-research
+          run-id: ${{ inputs.seed_artifact_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          path: .
+
+      - name: Prepare recovered dataset manifest
+        if: ${{ inputs.research_scope == 'all_markets' && hashFiles('data/**') != '' }}
+        run: |
+          mkdir -p data
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('data/download_manifest.json')
+          if not p.exists():
+              p.write_text(json.dumps({
+                  'exchange': 'Bitget',
+                  'market_type': 'linear USDT-settled perpetual swaps',
+                  'recovered_from_artifact_run': ${{ inputs.seed_artifact_run_id }},
+                  'data_provenance': 'recovered workflow artifact; no new candles fabricated',
+                  'timeframes': ['15m', '1h', '4h', '1d']
+              }, indent=2))
+          PY
+
       - name: Discover and download every eligible Bitget USDT perpetual crypto market
-        if: ${{ inputs.research_scope == 'all_markets' }}
+        if: ${{ inputs.research_scope == 'all_markets' && !hashFiles('data/download_manifest.json') }}
         run: |
           python -m backtesting.download_bitget \
             --symbols auto \
