@@ -15,10 +15,6 @@ on:
         description: "Estimated round-trip fees plus slippage (% notional)"
         required: true
         default: "0.12"
-      candidate_limit:
-        description: "Markets downloaded per resumable batch"
-        required: true
-        default: "20"
 
 permissions:
   contents: read
@@ -51,7 +47,7 @@ jobs:
             --absolute-min-quote-volume 250000 \
             --max-symbols 0 \
             --candidate-offset "${{ matrix.offset }}" \
-            --candidate-limit "${{ inputs.candidate_limit }}" \
+            --candidate-limit 20 \
             --include-tokenized-stocks \
             --out data
       - name: Preserve batch checkpoint manifest
@@ -107,6 +103,9 @@ jobs:
           if missing:
               raise SystemExit(f"Missing batch checkpoints: {missing}")
           manifests = [json.loads(p.read_text()) for p in files]
+          universe_size = max((m.get("candidate_universe_size", 0) for m in manifests), default=0)
+          if universe_size > max(expected) + 20:
+              raise SystemExit(f"Universe has {universe_size} candidates; extend matrix offsets beyond 780 before claiming completeness.")
           downloaded, failed, discovered = [], [], []
           for item in manifests:
               downloaded.extend(item.get("downloaded", []))
@@ -124,12 +123,12 @@ jobs:
               "timeframes": ["15m", "1h", "4h", "1d"],
               "completed_batch_offsets": completed,
               "expected_batch_offsets": expected,
-              "candidate_universe_size": max((m.get("candidate_universe_size", 0) for m in manifests), default=0),
+              "candidate_universe_size": universe_size,
               "downloaded": list(unique.values()),
               "failed": failed,
               "discovered_markets": discovered,
               "eligible_count": len(unique),
-              "candidate_count": max((m.get("candidate_universe_size", 0) for m in manifests), default=0),
+              "candidate_count": universe_size,
               "candidates_attempted": sum(m.get("candidates_attempted", 0) for m in manifests),
               "universe_note": "Current active Bitget swap universe, not point-in-time listings. Stock-underlying classification uses CCXT metadata and a maintained ticker list."
           }
