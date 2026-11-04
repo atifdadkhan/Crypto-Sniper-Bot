@@ -22,3 +22,12 @@ jobs:
         run: pip install -r requirements.txt
       - name: Run tests
         run: python -m pytest -q
+
+      - name: Compile and dry-import Render entry point (dummy credentials only)
+        env:
+          TELEGRAM_TOKEN: "123456:CI_DUMMY_TOKEN_NOT_REAL"
+          ADMIN_ID: "123456"
+          DATA_DIR: "/tmp/at-trendhive-ci"
+        run: |
+          python -m compileall -q main.py config.py exchange.py strategy.py indicators.py formatting.py delivery.py macro_policy.py
+          python -c "import main; assert main.settings.admin_id == 123456; print('Render entry point imports cleanly')"
