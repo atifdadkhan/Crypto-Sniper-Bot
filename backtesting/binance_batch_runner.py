@@ -3,10 +3,39 @@ import argparse
 import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
-from backtesting.full_market_runner import BASE_TIMEFRAMES, ALL_TIMEFRAMES, load_market_timeframes
-from backtesting.multi_strategy import STRATEGIES, contiguous_segments, run_engine_segment, metrics
+from backtesting.full_market_runner import ALL_TIMEFRAMES, load_market_timeframes
+from backtesting.multi_strategy import (STRATEGIES, INTERVAL_MS, contiguous_segments,
+    run_engine_segment, enrich_for_engines, _strategy_signal, metrics)
+from backtesting.backtest import simulate
+
+
+def run_spot_long_segment(symbol, timeframe, frame, engine, fee_slippage_pct):
+    """Spot-only simulation: never generates or simulates short entries."""
+    bars = enrich_for_engines(frame)
+    trades = []
+    next_entry_index = 100
+    max_hold = max(1, 86_400_000 // INTERVAL_MS[timeframe])
+    for i in range(100, len(bars) - 1):
+        if i < next_entry_index:
+            continue
+        signal = _strategy_signal(bars.iloc[i], "LONG", engine)
+        if signal is None:
+            continue
+        signal.symbol = symbol
+        signal.timestamp = str(pd.Timestamp(bars.iloc[i].timestamp) +
+                               pd.Timedelta(milliseconds=INTERVAL_MS[timeframe]))
+        trade = simulate(signal, bars, i + 1, max_hold, fee_slippage_pct, 0.0)
+        if trade is None:
+            continue
+        trade["strategy"] = engine
+        trade["timeframe"] = timeframe
+        trades.append(trade)
+        exits = np.flatnonzero(pd.DatetimeIndex(bars.timestamp) == pd.Timestamp(trade["exit_time"]))
+        next_entry_index = int(exits[0]) + 1 if len(exits) else i + 2
+    return pd.DataFrame(trades)
 
 
 def main():
@@ -41,9 +70,10 @@ def main():
                     if len(segment) < 120:
                         continue
                     tested += 1
-                    trades = run_engine_segment(folder.name, tf, segment, engine, a.fee_slippage_pct)
-                    if a.market_type == "spot" and not trades.empty:
-                        trades = trades[trades.side == "LONG"].copy()
+                    if a.market_type == "spot":
+                        trades = run_spot_long_segment(folder.name, tf, segment, engine, a.fee_slippage_pct)
+                    else:
+                        trades = run_engine_segment(folder.name, tf, segment, engine, a.fee_slippage_pct)
                     if not trades.empty:
                         pieces.append(trades)
                 combined = pd.concat(pieces, ignore_index=True) if pieces else pd.DataFrame()
