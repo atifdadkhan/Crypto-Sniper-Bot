@@ -104,19 +104,36 @@ class MarketData:
             return dict(zip(TIMEFRAMES, values))
 
 
-async def macro_trend(client, symbol):
+async def macro_snapshot(client, symbol):
+    """Closed 4h BTC/ETH trend and 6-bar return for relative-strength gating."""
+    unknown = {"trend": "UNKNOWN", "return_6_pct": None}
     raw = await client.fetch_ohlcv(symbol, timeframe="4h", limit=100)
-    if not raw or len(raw) < 60:
-        return "UNKNOWN"
+    if not raw or len(raw) < 62:
+        return unknown
     df = pd.DataFrame(raw[:-1], columns=["timestamp", "open", "high", "low", "close", "volume"])
-    close = pd.to_numeric(df.close, errors="coerce").dropna()
-    if len(close) < 55:
-        return "UNKNOWN"
+    df = df.sort_values("timestamp").drop_duplicates("timestamp")
+    if len(df) < 60:
+        return unknown
+    stamps = df.timestamp.tail(60).astype("int64")
+    interval = TIMEFRAMES["4h"]
+    now = int(time.time() * 1000)
+    last_open = int(stamps.iloc[-1])
+    if (stamps.diff().dropna() != interval).any():
+        return unknown
+    if last_open + interval > now + 30_000 or now - (last_open + interval) > interval * 1.2:
+        return unknown
+    close = pd.to_numeric(df.close, errors="coerce")
+    if close.isna().any() or (close <= 0).any():
+        return unknown
     e9 = close.ewm(span=9, adjust=False).mean().iloc[-1]
     e21 = close.ewm(span=21, adjust=False).mean().iloc[-1]
     e50 = close.ewm(span=50, adjust=False).mean().iloc[-1]
-    if close.iloc[-1] > e9 > e21 > e50:
-        return "BULLISH"
-    if close.iloc[-1] < e9 < e21 < e50:
-        return "BEARISH"
-    return "NEUTRAL"
+    trend_value = ("BULLISH" if close.iloc[-1] > e9 > e21 > e50 else
+                   "BEARISH" if close.iloc[-1] < e9 < e21 < e50 else "NEUTRAL")
+    return {"trend": trend_value,
+            "return_6_pct": 100 * (float(close.iloc[-1]) / float(close.iloc[-7]) - 1)}
+
+
+async def macro_trend(client, symbol):
+    """Compatibility wrapper for consumers needing only the macro direction."""
+    return (await macro_snapshot(client, symbol))["trend"]
