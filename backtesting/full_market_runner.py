@@ -70,7 +70,7 @@ def load_market_timeframes(folder):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Full-market Bitget USDT perpetual strategy research")
+    parser = argparse.ArgumentParser(description="Full-market spot/perpetual strategy research")
     parser.add_argument("--data-dir", default="data")
     parser.add_argument("--fee-slippage-pct", type=float, default=0.12)
     parser.add_argument("--minimum-trades", type=int, default=30)
@@ -86,8 +86,9 @@ def main():
         raise RuntimeError("DATA INSUFFICIENT: download_manifest.json is required")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     market_type = str(manifest.get("market_type", "")).lower()
-    if "usdt" not in market_type or "perpetual" not in market_type:
+    if not (("usdt" in market_type and "perpetual" in market_type) or market_type == "spot cash"):
         raise RuntimeError(f"Refusing unexpected market dataset: {market_type!r}")
+    sides = ("LONG",) if market_type == "spot cash" else ("LONG", "SHORT")
 
     summary, trade_frames = {}, []
     market_folders = sorted(p for p in root.iterdir() if p.is_dir() and p.name.endswith("USDT"))
@@ -107,7 +108,7 @@ def main():
                         continue
                     segments_tested += 1
                     result = run_engine_segment(
-                        symbol, tf, segment, engine, args.fee_slippage_pct
+                        symbol, tf, segment, engine, args.fee_slippage_pct, sides=sides
                     )
                     if not result.empty:
                         pieces.append(result)
@@ -155,7 +156,7 @@ def main():
     print(f"Markets with strategy rows: {len(summary)}")
     print(f"Trade rows: {len(trades_all)}")
     print(leaderboard.head(100).to_string(index=False) if not leaderboard.empty else "No qualifying strategy trades.")
-    print("Research only: estimated fees/slippage included; historical funding is not yet applied.")
+    print(f"Research only: market_type={market_type}; sides={sides}; estimated fees/slippage included; historical funding is not yet applied.")
 
 
 if __name__ == "__main__":

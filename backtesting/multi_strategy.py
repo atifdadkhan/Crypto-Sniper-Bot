@@ -119,7 +119,7 @@ def contiguous_segments(frame, timeframe):
     return [part.reset_index(drop=True) for part in np.split(frame, cuts) if len(part)]
 
 
-def run_engine_segment(symbol, timeframe, frame, engine, fee_slippage_pct):
+def run_engine_segment(symbol, timeframe, frame, engine, fee_slippage_pct, sides=("LONG", "SHORT")):
     bars = enrich_for_engines(frame)
     trades = []
     next_entry_index = 100
@@ -129,7 +129,7 @@ def run_engine_segment(symbol, timeframe, frame, engine, fee_slippage_pct):
             continue
         row = bars.iloc[i]
         candidates = []
-        for side in ("LONG", "SHORT"):
+        for side in sides:
             sig = _strategy_signal(row, side, engine)
             if sig is not None:
                 sig.symbol = symbol
