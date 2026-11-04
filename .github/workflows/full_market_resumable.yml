@@ -1,0 +1,183 @@
+name: Bitget Full-Market Resumable Research
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Historical lookback days"
+        required: true
+        default: "365"
+      min_history_days:
+        description: "Minimum accepted market history days"
+        required: true
+        default: "120"
+      fee_slippage_pct:
+        description: "Estimated round-trip fees plus slippage (% notional)"
+        required: true
+        default: "0.12"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  download_batches:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        offset: [0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300, 320, 340, 360, 380, 400, 420, 440, 460, 480, 500, 520, 540, 560, 580, 600, 620, 640, 660, 680, 700, 720, 740, 760, 780]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Download one independent market batch
+        run: |
+          python -m backtesting.download_bitget \
+            --symbols auto \
+            --days "${{ inputs.days }}" \
+            --min-history-days "${{ inputs.min_history_days }}" \
+            --min-quote-volume 500000 \
+            --absolute-min-quote-volume 250000 \
+            --max-symbols 0 \
+            --candidate-offset "${{ matrix.offset }}" \
+            --candidate-limit 20 \
+            --include-tokenized-stocks \
+            --out data
+      - name: Preserve batch checkpoint manifest
+        if: always()
+        run: |
+          mkdir -p batch_manifests
+          if [ -f data/download_manifest.json ]; then
+            mv data/download_manifest.json "batch_manifests/manifest_${{ matrix.offset }}.json"
+          fi
+      - name: Upload resumable batch checkpoint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: at-trendhive-data-batch-${{ matrix.offset }}
+          path: |
+            data/
+            batch_manifests/
+          if-no-files-found: ignore
+          retention-days: 90
+          overwrite: true
+
+  backtest_all_markets:
+    needs: download_batches
+    if: ${{ needs.download_batches.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run deterministic tests
+        run: python -m pytest -q
+      - name: Restore all batch checkpoints
+        uses: actions/download-artifact@v4
+        with:
+          pattern: at-trendhive-data-batch-*
+          merge-multiple: true
+          path: .
+      - name: Merge manifests and validate complete batch coverage
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          folder = Path("batch_manifests")
+          files = sorted(folder.glob("manifest_*.json"))
+          expected = list(range(0, 800, 20))
+          completed = sorted(int(p.stem.split("_")[1]) for p in files)
+          missing = sorted(set(expected) - set(completed))
+          if missing:
+              raise SystemExit(f"Missing batch checkpoints: {missing}")
+          manifests = [json.loads(p.read_text()) for p in files]
+          universe_size = max((m.get("candidate_universe_size", 0) for m in manifests), default=0)
+          if universe_size > max(expected) + 20:
+              raise SystemExit(f"Universe has {universe_size} candidates; extend matrix offsets beyond 780 before claiming completeness.")
+          downloaded, failed, discovered = [], [], []
+          for item in manifests:
+              downloaded.extend(item.get("downloaded", []))
+              failed.extend(item.get("failed", []))
+              discovered.extend(item.get("discovered_markets", []))
+          unique = {}
+          for item in downloaded:
+              unique[item["symbol"]] = item
+          manifest = {
+              "exchange": "Bitget",
+              "market_type": "linear USDT-settled perpetual swaps",
+              "asset_scope": "crypto plus tokenized equities",
+              "include_tokenized_stocks": True,
+              "data_provenance": "resumable matrix download; independent artifacts per candidate batch",
+              "timeframes": ["15m", "1h", "4h", "1d"],
+              "completed_batch_offsets": completed,
+              "expected_batch_offsets": expected,
+              "candidate_universe_size": universe_size,
+              "downloaded": list(unique.values()),
+              "failed": failed,
+              "discovered_markets": discovered,
+              "eligible_count": len(unique),
+              "candidate_count": universe_size,
+              "candidates_attempted": sum(m.get("candidates_attempted", 0) for m in manifests),
+              "universe_note": "Current active Bitget swap universe, not point-in-time listings. Stock-underlying classification uses CCXT metadata and a maintained ticker list."
+          }
+          if not manifest["downloaded"]:
+              raise SystemExit("No eligible market datasets were restored.")
+          Path("data").mkdir(exist_ok=True)
+          Path("data/download_manifest.json").write_text(json.dumps(manifest, indent=2))
+          print(f"Restored {len(unique)} markets from {len(completed)} batches; failed markets: {len(failed)}")
+          PY
+      - name: Backtest five engines across six timeframes
+        run: |
+          python -m backtesting.full_market_runner \
+            --data-dir data \
+            --fee-slippage-pct "${{ inputs.fee_slippage_pct }}" \
+            --minimum-trades 30
+      - name: Split crypto and tokenized-equity reports
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          manifest = json.loads(Path("data/download_manifest.json").read_text())
+          classes = {x["symbol"].replace("/", "").replace(":USDT", ""): x.get("asset_class", "crypto_or_unverified")
+                     for x in manifest.get("discovered_markets", [])}
+          root = Path("backtest_results")
+          summary_path = root / "full_market_strategy_summary.json"
+          trade_path = root / "full_market_strategy_trades.csv"
+          if summary_path.exists():
+              summary = json.loads(summary_path.read_text())
+              trades = pd.read_csv(trade_path) if trade_path.exists() else pd.DataFrame()
+              for label, predicate in (
+                  ("crypto", lambda v: v != "tokenized_equity"),
+                  ("tokenized_equities", lambda v: v == "tokenized_equity"),
+              ):
+                  selected = {s: data for s, data in summary.items() if predicate(classes.get(s, "crypto_or_unverified"))}
+                  out = root / label
+                  out.mkdir(parents=True, exist_ok=True)
+                  (out / "summary.json").write_text(json.dumps(selected, indent=2))
+                  if not trades.empty:
+                      subset = trades[trades["symbol"].map(lambda s: predicate(classes.get(s, "crypto_or_unverified")))]
+                      subset.to_csv(out / "trades.csv", index=False)
+          PY
+      - name: Upload complete dataset and research reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: at-trendhive-full-market-crypto-and-equities
+          path: |
+            data/
+            backtest_results/
+          if-no-files-found: warn
+          retention-days: 90
