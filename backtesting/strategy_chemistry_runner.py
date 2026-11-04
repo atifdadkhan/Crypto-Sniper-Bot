@@ -56,7 +56,8 @@ def combine_candidates(row, side, name, candidates, required=(), min_votes=2):
         return None
     if len(candidates) < min_votes:
         return None
-    stops = np.asarray([float(sig.stop_loss) for sig in candidates.values()], dtype=float)
+    chosen = candidates if not required else {key: candidates[key] for key in required}
+    stops = np.asarray([float(sig.stop_loss) for sig in chosen.values()], dtype=float)
     if not np.isfinite(stops).all():
         return None
     # Median structural invalidation avoids choosing the widest stop by default.
@@ -76,7 +77,7 @@ def signals_for_row(row):
     return by_side
 
 
-def _simulate_window(symbol, timeframe, bars, strategy_name, start_index,
+def _simulate_window(symbol, timeframe, bars, votes_by_index, strategy_name, start_index,
                      fee_slippage_pct, sample_period):
     """One position at a time; no entry can use the unfinished current bar."""
     trades = []
@@ -85,7 +86,7 @@ def _simulate_window(symbol, timeframe, bars, strategy_name, start_index,
     max_hold = max(1, 86_400_000 // INTERVAL_MS[timeframe])
     for i in range(next_entry, len(view) - 1):
         row = view.iloc[i]
-        votes = signals_for_row(row)
+        votes = votes_by_index[i]
         selected = None
         for side in ("LONG", "SHORT"):
             if strategy_name == BASELINE:
@@ -136,14 +137,17 @@ def evaluate_segment(symbol, timeframe, raw_segment, strategy_name, fee_slippage
     if len(bars) < 200:
         return None, None, "DATA INSUFFICIENT: fewer than 200 indicator-ready candles"
     split = int(len(bars) * 0.60)
+    votes_by_index = [None] * len(bars)
+    for i in range(100, len(bars) - 1):
+        votes_by_index[i] = signals_for_row(bars.iloc[i])
     if split < 120 or (len(bars) - split) < 40:
         return None, None, "DATA INSUFFICIENT: insufficient chronological holdout"
     train = _simulate_window(
-        symbol, timeframe, bars.iloc[:split].copy(), strategy_name, 100,
+        symbol, timeframe, bars.iloc[:split].copy(), votes_by_index, strategy_name, 100,
         fee_slippage_pct, "IN_SAMPLE",
     )
     test = _simulate_window(
-        symbol, timeframe, bars.copy(), strategy_name, split,
+        symbol, timeframe, bars.copy(), votes_by_index, strategy_name, split,
         fee_slippage_pct, "OUT_OF_SAMPLE",
     )
     return train, test, None
