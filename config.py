@@ -52,6 +52,8 @@ class Settings:
     request_rate_limit: bool
     test_mode: bool
     concurrency: int
+    scan_batch_size: int
+    signal_ttl_seconds: int
 
 
 def load_settings():
@@ -75,4 +77,6 @@ def load_settings():
         request_rate_limit=_bool("REQUEST_RATE_LIMIT", True),
         test_mode=_bool("TEST_MODE", False),
         concurrency=_int("SCAN_CONCURRENCY", 3, 1, 8),
+        scan_batch_size=_int("SCAN_BATCH_SIZE", 80, 0, 1000),
+        signal_ttl_seconds=_int("SIGNAL_TTL_SECONDS", 900, 120, 1800),
     )
