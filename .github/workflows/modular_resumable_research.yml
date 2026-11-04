@@ -1,0 +1,194 @@
+name: Bitget Modular Resumable Research
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Requested historical lookback (120-2000 days)"
+        required: true
+        default: "365"
+      min_history_days:
+        description: "Minimum accepted history days"
+        required: true
+        default: "120"
+      fee_slippage_pct:
+        description: "Estimated round-trip fees plus slippage (% notional)"
+        required: true
+        default: "0.12"
+      resume_from_run_id:
+        description: "Previous run ID to reuse completed batch artifacts (0 = fresh run)"
+        required: true
+        default: "0"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: bitget-modular-research-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      count: ${{ steps.matrix.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Discover the eligible Bitget USDT perpetual universe once
+        id: matrix
+        env:
+          BATCH_SIZE: "10"
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          import ccxt
+          from backtesting.download_bitget import discover_usdt_swaps
+
+          exchange = ccxt.bitget({
+              "enableRateLimit": True,
+              "timeout": 30000,
+              "options": {"defaultType": "swap", "fetchMarkets": {"types": ["swap"]}},
+          })
+          try:
+              markets = discover_usdt_swaps(
+                  exchange,
+                  min_quote_volume=500000,
+                  absolute_min_quote_volume=250000,
+                  max_symbols=0,
+                  include_tokenized_stocks=False,
+              )
+              symbols = [item[0] for item in markets]
+              size = int(os.environ["BATCH_SIZE"])
+              batches = [
+                  {"batch": i // size, "offset": i, "symbols": ",".join(symbols[i:i + size])}
+                  for i in range(0, len(symbols), size)
+              ]
+              if not batches:
+                  raise SystemExit("No eligible Bitget USDT perpetual markets discovered.")
+              print("matrix=" + json.dumps({"include": batches}, separators=(",", ":")))
+              print("count=" + str(len(symbols)))
+              print(f"Discovered {len(symbols)} eligible markets in {len(batches)} batches.")
+          finally:
+              close = getattr(exchange, "close", None)
+              if close:
+                  close()
+          PY
+
+  batch_research:
+    needs: discover
+    if: ${{ needs.discover.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Restore this batch from an earlier run when available
+        if: ${{ inputs.resume_from_run_id != '0' }}
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: at-trendhive-research-batch-${{ matrix.batch }}
+          run-id: ${{ inputs.resume_from_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          path: checkpoint
+
+      - name: Verify restored checkpoint belongs to this exact batch
+        id: resume_check
+        env:
+          EXPECTED_SYMBOLS: ${{ matrix.symbols }}
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          from pathlib import Path
+          path = Path("checkpoint/BATCH_COMPLETE.json")
+          reuse = False
+          if path.exists():
+              saved = json.loads(path.read_text())
+              expected = os.environ["EXPECTED_SYMBOLS"].split(",")
+              reuse = saved.get("status") == "download_validated_and_backtested" and saved.get("symbols") == expected
+          print("reuse=" + str(reuse).lower())
+          print("Restoring completed checkpoint." if reuse else "No matching completed checkpoint; this batch will run.")
+          PY
+
+      - name: Install dependencies
+        if: ${{ steps.resume_check.outputs.reuse != 'true' }}
+        run: pip install -r requirements.txt
+
+      - name: Download this small market batch
+        if: ${{ !hashFiles('checkpoint/BATCH_COMPLETE.json') }}
+        env:
+          SYMBOLS: ${{ matrix.symbols }}
+        run: |
+          python -m backtesting.download_bitget \
+            --symbols "$SYMBOLS" \
+            --days "${{ inputs.days }}" \
+            --min-history-days "${{ inputs.min_history_days }}" \
+            --min-quote-volume 500000 \
+            --absolute-min-quote-volume 250000 \
+            --max-symbols 0 \
+            --candidate-offset "${{ matrix.offset }}" \
+            --candidate-limit 10 \
+            --out data
+
+      - name: Run deterministic tests
+        if: ${{ !hashFiles('checkpoint/BATCH_COMPLETE.json') }}
+        run: python -m pytest -q
+
+      - name: Backtest all preserved strategy engines immediately for this batch
+        if: ${{ !hashFiles('checkpoint/BATCH_COMPLETE.json') }}
+        run: |
+          python -m backtesting.full_market_runner \
+            --data-dir data \
+            --fee-slippage-pct "${{ inputs.fee_slippage_pct }}" \
+            --minimum-trades 30
+
+      - name: Write batch completion checkpoint
+        if: ${{ !hashFiles('checkpoint/BATCH_COMPLETE.json') && success() }}
+        env:
+          BATCH: ${{ matrix.batch }}
+          OFFSET: ${{ matrix.offset }}
+          SYMBOLS: ${{ matrix.symbols }}
+        run: |
+          mkdir -p checkpoint
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          Path("checkpoint/BATCH_COMPLETE.json").write_text(json.dumps({
+              "batch": int(os.environ["BATCH"]),
+              "candidate_offset": int(os.environ["OFFSET"]),
+              "symbols": os.environ["SYMBOLS"].split(","),
+              "status": "download_validated_and_backtested",
+          }, indent=2))
+          PY
+          cp -a data backtest_results checkpoint/
+
+      - name: Preserve batch checkpoint and research outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: at-trendhive-research-batch-${{ matrix.batch }}
+          path: |
+            checkpoint/
+            data/
+            backtest_results/
+          if-no-files-found: ignore
+          retention-days: 90
+          overwrite: true
