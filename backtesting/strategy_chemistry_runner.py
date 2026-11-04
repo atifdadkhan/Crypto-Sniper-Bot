@@ -196,8 +196,16 @@ def main():
             item.get("asset_class", "crypto_or_unverified")
         for item in manifest.get("discovered_markets", [])
     }
+    eligible_symbols = {
+        str(item.get("symbol", "")).replace("/", "").replace(":USDT", "")
+        for item in manifest.get("downloaded", []) if item.get("symbol")
+    }
+    all_symbol_folders = sorted(p for p in root.iterdir() if p.is_dir() and p.name.endswith("USDT"))
+    folders = [p for p in all_symbol_folders if p.name in eligible_symbols]
+    excluded_incomplete_folders = len(all_symbol_folders) - len(folders)
+    if not folders:
+        raise RuntimeError("DATA INSUFFICIENT: no fully validated symbols from the merged download manifest")
     summary, all_trades = {}, []
-    folders = sorted(p for p in root.iterdir() if p.is_dir() and p.name.endswith("USDT"))
     for folder in folders:
         frames, data_status = load_market_timeframes(folder)
         summary[folder.name] = {
@@ -291,7 +299,8 @@ def main():
             subset.to_csv(output / f"{label}_leaderboard.csv", index=False)
     report = [
         "# A&T TrendHive — Strategy Chemistry Research", "",
-        f"Markets: {len(folders)}",
+        f"Fully validated markets analysed: {len(folders)}",
+        f"Incomplete/unapproved market folders excluded: {excluded_incomplete_folders}",
         f"Round-trip fee + slippage assumption: {args.fee_slippage_pct:.4f}% notional",
         f"Minimum OOS trades for screening: {args.minimum_oos_trades}",
         "Each contiguous segment: first 60% in-sample, final 40% out-of-sample.",
@@ -312,7 +321,8 @@ def main():
     (output / "strategy_chemistry_report.md").write_text(
         "\n".join(report) + "\n", encoding="utf-8"
     )
-    print(f"Markets analysed: {len(folders)}")
+    print(f"Fully validated markets analysed: {len(folders)}")
+    print(f"Incomplete/unapproved market folders excluded: {excluded_incomplete_folders}")
     print(f"Trade rows: {len(trades_all)}")
     print(leaderboard.head(100).to_string(index=False) if not leaderboard.empty else "No qualifying trades")
     print("RESEARCH ONLY — no live approval; historical funding excluded.")
