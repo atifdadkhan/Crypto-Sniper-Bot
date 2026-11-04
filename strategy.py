@@ -177,11 +177,24 @@ def evaluate(symbol, candles, btc_trend, eth_trend, min_score=7, current_price=N
         if trend(h1) != wanted or trend(h4) != wanted or trend(d1) == opposite:
             continue
         candidate = _candidate(fast, side, current_price)
-        if candidate is None or candidate.score < min_score:
+        if candidate is None:
             continue
-        candidate.symbol = symbol
         if btc_trend == wanted and eth_trend == wanted:
             candidate.score = min(10, candidate.score + 1)
             candidate.reasons.append("BTC and ETH support the direction")
+        allowed, independent = direction_policy(
+            side, btc_trend, eth_trend, candidate.score, asset_return_6_pct,
+            btc_return_6_pct, eth_return_6_pct, h4.adx,
+        )
+        if not allowed or candidate.score < min_score:
+            continue
+        if independent:
+            candidate.counter_macro = True
+            candidate.reasons.append("Strong independent 4H trend despite BTC/ETH opposition")
+        candidate.symbol = symbol
+        try:
+            candidate.candle_close_ms = int(float(candles["15m"].timestamp.iloc[-1])) + 900_000
+        except (TypeError, ValueError, AttributeError):
+            candidate.candle_close_ms = 0
         candidates.append(candidate)
     return max(candidates, key=lambda item: item.score) if candidates else None
