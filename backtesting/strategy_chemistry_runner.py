@@ -38,6 +38,14 @@ COMBINATIONS = {
         "required": ("breakout_retest", "volatility_expansion"),
         "min_votes": 2,
     },
+    "momentum_plus_volatility_expansion": {
+        "required": ("momentum_continuation", "volatility_expansion"),
+        "min_votes": 2,
+    },
+    "trend_momentum_volume_confluence": {
+        "required": ("trend_pullback", "momentum_continuation", "volatility_expansion"),
+        "min_votes": 3,
+    },
     "two_of_five_consensus": {
         "required": (),
         "min_votes": 2,
