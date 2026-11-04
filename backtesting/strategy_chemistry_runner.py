@@ -315,7 +315,8 @@ def main():
         for (asset_class, timeframe, strategy_name), group in oos_trades.groupby(
             ["asset_class", "timeframe", "strategy"], dropna=False
         ):
-            result = metrics(group)
+            # Timestamp-sort pooled trades; this is trade-level R aggregation, not a portfolio simulation.
+            result = metrics(group.sort_values("entry_time").reset_index(drop=True))
             aggregate_rows.append({
                 "asset_class": asset_class, "timeframe": timeframe, "strategy": strategy_name,
                 "markets": int(group["symbol"].nunique()),
@@ -353,6 +354,7 @@ def main():
         "Each contiguous segment: first 60% in-sample, final 40% out-of-sample.",
         "Entries use the next candle open after a completed signal candle.",
         "Fixed combinations; no parameter optimisation. Results are not a probability forecast.",
+        "Pooled rankings are chronological trade-level R summaries, not capital-weighted portfolio drawdowns.",
         "Crypto/unverified assets and tokenized equities are classified separately in the leaderboard exports.",
         "Historical funding is not included; perpetual results remain experimental.",
         "No exchange orders are sent. No strategy is auto-approved for live Telegram signals.", "",
