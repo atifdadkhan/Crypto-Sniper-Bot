@@ -22,6 +22,7 @@ from config import load_settings
 from exchange import MarketData, macro_snapshot
 from strategy import evaluate
 from relative_strength import evaluate_relative_strength, precheck_recent_breakout
+from slow_momentum import evaluate_slow_momentum, precheck_slow_momentum
 from formatting import signal_text, help_text
 from delivery import AlertOutbox
 from utils import load_json, atomic_json, cooldown_active
@@ -56,7 +57,8 @@ delivery_lock = asyncio.Lock()
 client = MarketData(settings.exchange_timeout_ms, settings.request_rate_limit)
 last_scan_result = {"symbols": 0, "signals": 0, "skipped": 0, "no_setup": 0,
                     "universe": 0, "scan_batch": 0, "delivery_pending": len(outbox.items),
-                    "core15m_queued": 0, "rs4h_queued": 0, "rs4h_errors": 0}
+                    "core15m_queued": 0, "rs4h_queued": 0, "rs4h_errors": 0,
+                    "slow4h_queued": 0}
 if isinstance(state.get("last_scan_result"), dict):
     last_scan_result.update(state["last_scan_result"])
 last_scan_result["delivery_pending"] = len(outbox.items)
@@ -130,6 +132,7 @@ def _scan_summary():
             f"Alerts delivered: {last_scan_result['signals']}\n"
             f"15m engine queued: {last_scan_result.get('core15m_queued', 0)}\n"
             f"4H RS queued: {last_scan_result.get('rs4h_queued', 0)}\n"
+            f"4H Slow Momentum queued: {last_scan_result.get('slow4h_queued', 0)}\n"
             f"4H RS data errors: {last_scan_result.get('rs4h_errors', 0)}\n"
             f"Skipped (data/errors): {last_scan_result['skipped']}\n"
             f"No valid setup: {last_scan_result['no_setup']}\n"
@@ -333,16 +336,28 @@ async def _scan_one(symbol, sem, btc, eth):
                     price = live
                     if recent is None:
                         recent = await client.candles(symbol, "4h")
-                    # Most markets need zero extra HTTP requests.
-                    if not precheck_recent_breakout(recent, btc, eth):
+                    # Two 4H setup families share ONE history fetch and
+                    # return at most one 4H alert per symbol/candle.
+                    rs_ready = precheck_recent_breakout(recent, btc, eth)
+                    slow_ready = precheck_slow_momentum(recent)
+                    if not rs_ready and not slow_ready:
                         return None
                     if price is None:
                         price = await client.live_price(symbol)
                     extended = await client.extended_four_hour(symbol, recent)
-                    return evaluate_relative_strength(
-                        symbol, extended, price, btc, eth,
-                        ttl_seconds=settings.rs_signal_ttl_seconds,
-                    )
+                    if rs_ready:
+                        primary = evaluate_relative_strength(
+                            symbol, extended, price, btc, eth,
+                            ttl_seconds=settings.rs_signal_ttl_seconds,
+                        )
+                        if primary is not None:
+                            return primary
+                    if slow_ready:
+                        return evaluate_slow_momentum(
+                            symbol, extended, price,
+                            ttl_seconds=settings.rs_signal_ttl_seconds,
+                        )
+                    return None
                 try:
                     # A slow 4H history fetch cannot discard a valid 15m signal.
                     rs = await asyncio.wait_for(rs_attempt(), timeout=75)
@@ -362,7 +377,7 @@ async def run_scan(bot=None, chat_id=None):
         return "A market scan is already running."
     async with scan_lock:
         scanned = skipped = no_setup = delivered = queued = 0
-        core_queued = rs_queued = rs_errors = 0
+        core_queued = rs_queued = slow_queued = rs_errors = 0
         tasks = []
         started = time.monotonic()
         try:
@@ -420,6 +435,8 @@ async def run_scan(bot=None, chat_id=None):
                         queued += 1
                         if engine == "RS_4H":
                             rs_queued += 1
+                        elif engine == "SLOW_4H":
+                            slow_queued += 1
                         else:
                             core_queued += 1
                         delivered += await _deliver_pending(bot, chat_id, limit=5)
@@ -432,7 +449,7 @@ async def run_scan(bot=None, chat_id=None):
                 "no_setup": no_setup, "universe": n, "scan_batch": len(symbols),
                 "delivery_pending": len(outbox.items),
                 "core15m_queued": core_queued, "rs4h_queued": rs_queued,
-                "rs4h_errors": rs_errors,
+                "slow4h_queued": slow_queued, "rs4h_errors": rs_errors,
             }
             _save_state()
             duration = round(time.monotonic() - started, 1)
@@ -441,6 +458,7 @@ async def run_scan(bot=None, chat_id=None):
                     f"{skipped} data/errors, {no_setup} no setup. "
                     f"BTC: {btc['trend']}; ETH: {eth['trend']}. "
                     f"15m queued: {core_queued}; 4H RS queued: {rs_queued}; "
+                    f"4H Slow queued: {slow_queued}; "
                     f"4H RS data/errors: {rs_errors}. "
                     f"Rotating batch size: {len(symbols)}. Pending: {len(outbox.items)}.")
         except asyncio.CancelledError:
