@@ -87,6 +87,10 @@ def main():
     (output / "strategy_chemistry_summary.json").write_text(
         json.dumps(summary, indent=2, allow_nan=False), encoding="utf-8"
     )
+    pd.DataFrame(
+        duplicate_rows,
+        columns=["symbol", "kept_offset", "skipped_offset", "kept_batch", "skipped_batch"],
+    ).to_csv(output / "strategy_chemistry_duplicate_symbols.csv", index=False)
 
     symbol_rows = []
     for symbol, data in summary.items():
