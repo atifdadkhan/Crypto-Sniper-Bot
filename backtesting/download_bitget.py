@@ -40,16 +40,38 @@ NON_CRYPTO_BASES = {
 }
 
 
-def is_excluded_non_crypto_base(base):
-    """Heuristic exclusion for known tokenised non-crypto underlyings."""
+TOKENIZED_STOCK_BASES = {
+    "AAOI", "ADVANTEST", "AEHR", "ALAB", "AMAT", "AMKR", "ASML", "ASX", "AXTI",
+    "BMNR", "COHR", "CONL", "COP", "CRDO", "CRWV", "DELL", "EUV", "EWY", "GE",
+    "GIGADEVICE", "GLW", "HOOD", "HYUNDAI", "IBM", "IREN", "KIOXIA", "LASERTEC",
+    "MCD", "MSTU", "NBIS", "NETEASE", "NKE", "NOKSTOCK", "NOW", "OKLO", "OUST",
+    "OXY", "QCOM", "QNTSTOCK", "RAM", "RDW", "RKLB", "SAMSUNG", "SIMO", "SITM",
+    "SLX", "SMIC", "SMR", "SOXX", "SQQQ", "STXSTOCK", "TENCENT", "TOKYOEL",
+    "USAR", "UVXY", "WDC", "XIAOMI",
+}
+
+
+def is_excluded_non_crypto_base(base, include_tokenized_stocks=False, market=None):
+    """Exclude known non-crypto underlyings, with an explicit equity inclusion mode."""
     value = str(base or "").strip().upper()
     if not value:
         return True
-    return value in NON_CRYPTO_BASES
+    is_stock = bool((market or {}).get("stock")) or value in TOKENIZED_STOCK_BASES
+    if include_tokenized_stocks and is_stock:
+        return False
+    return value in NON_CRYPTO_BASES or is_stock
 
 
-def discover_usdt_swaps(exchange, min_quote_volume=500_000.0, max_symbols=0, absolute_min_quote_volume=None):
-    """Discover active linear USDT-settled swaps, excluding known non-crypto underlyings."""
+def slice_market_candidates(markets, offset=0, limit=0):
+    """Return a deterministic candidate batch; limit=0 means all remaining."""
+    if offset < 0 or limit < 0:
+        raise ValueError("candidate offset and limit must be non-negative")
+    return markets[offset:] if limit == 0 else markets[offset:offset + limit]
+
+
+def discover_usdt_swaps(exchange, min_quote_volume=500_000.0, max_symbols=0,
+                        absolute_min_quote_volume=None, include_tokenized_stocks=False):
+    """Discover active linear USDT-settled swaps; optionally include stock underlyings."""
     markets = exchange.load_markets()
     tickers = exchange.fetch_tickers()
     selected = []
@@ -61,7 +83,7 @@ def discover_usdt_swaps(exchange, min_quote_volume=500_000.0, max_symbols=0, abs
         if market.get("quote") != "USDT" or market.get("settle") not in (None, "USDT"):
             continue
         base = str(market.get("base") or "").upper()
-        if is_excluded_non_crypto_base(base):
+        if is_excluded_non_crypto_base(base, include_tokenized_stocks, market):
             continue
         ticker = tickers.get(symbol) or {}
         # Prefer Bitget's explicit USDT turnover field for USDT-settled swaps.
@@ -315,11 +337,18 @@ def main():
                         help="Minimum acceptable per-market history when requested lookback is unavailable")
     parser.add_argument("--max-symbols", type=int, default=20,
                         help="Target fully eligible markets; 0 means all eligible markets")
+    parser.add_argument("--candidate-offset", type=int, default=0,
+                        help="Zero-based offset into the ranked discovered market universe")
+    parser.add_argument("--candidate-limit", type=int, default=0,
+                        help="Maximum candidates in this batch; 0 means all remaining")
+    parser.add_argument("--include-tokenized-stocks", action="store_true",
+                        help="Include Bitget stock-underlying USDT swaps alongside crypto")
     args = parser.parse_args()
     if not 120 <= args.days <= 2000:
         parser.error("--days must be between 120 and 2000; the strategy requires 100 daily candles plus a coverage buffer")
     if (args.min_quote_volume < 0 or args.absolute_min_quote_volume < 0
-            or args.absolute_min_quote_volume > args.min_quote_volume or args.max_symbols < 0):
+            or args.absolute_min_quote_volume > args.min_quote_volume or args.max_symbols < 0
+            or args.candidate_offset < 0 or args.candidate_limit < 0):
         parser.error("volume floors must be non-negative, absolute floor <= preferred floor, and max symbols >= 0")
     if args.min_history_days < 120:
         parser.error("--min-history-days must be >= 120 for the strategy daily-timeframe warm-up")
@@ -327,11 +356,17 @@ def main():
         print(f"WARNING: min history {args.min_history_days}d exceeds requested {args.days}d; clamping minimum to {args.days}d")
         args.min_history_days = args.days
 
+    # Load only classic swap markets: this avoids an unrelated malformed UTA spot
+    # instrument breaking discovery for the entire derivatives universe.
     exchange = ccxt.bitget({"enableRateLimit": True, "timeout": 30000,
-                            "options": {"defaultType": "swap"}})
+                            "options": {"defaultType": "swap",
+                                        "fetchMarkets": {"types": ["swap"]}}})
     out_dir = Path(args.out)
     manifest = {
         "exchange": "Bitget", "market_type": "linear USDT-settled perpetual swaps",
+        "asset_scope": "crypto plus tokenized equities" if args.include_tokenized_stocks else "crypto only",
+        "include_tokenized_stocks": bool(args.include_tokenized_stocks),
+        "candidate_offset": args.candidate_offset, "candidate_limit": args.candidate_limit,
         "days_requested": args.days, "timeframes": list(TIMEFRAMES),
         "preferred_24h_turnover_usdt": args.min_quote_volume,
         "absolute_min_24h_turnover_usdt": args.absolute_min_quote_volume,
@@ -341,20 +376,30 @@ def main():
         "selection_policy": "rank by Bitget USDT turnover; use lower-turnover candidates only down to the absolute floor",
         "coverage_policy": "per-market history is reduced only through explicit tiers; no fabricated candles",
         "comparison_warning": "Per-market lookback may differ; compare markets on matched date windows before cross-market conclusions.",
-        "universe_note": "Current active market universe; not point-in-time historical listings. "
-                         "Known tokenised equities, indices and commodities are excluded using a maintained "
-                         "base-symbol denylist. This is a heuristic, not a guarantee that every underlying is crypto.",
-        "non_crypto_filter": "heuristic_base_symbol_denylist",
+        "universe_note": "Current active Bitget swap universe; not point-in-time historical listings. "
+                         "Tokenized stock underlyings are included only when requested and are identified from "
+                         "CCXT stock metadata plus a maintained ticker list. Classification remains heuristic.",
+        "non_crypto_filter": "CCXT stock metadata plus maintained ticker lists",
         "downloaded": [], "failed": [],
     }
     try:
         if args.symbols.strip().lower() == "auto":
-            markets = discover_usdt_swaps(exchange, args.min_quote_volume, args.max_symbols,
-                                           absolute_min_quote_volume=args.absolute_min_quote_volume)
-            symbols = [x[0] for x in markets]
+            markets = discover_usdt_swaps(
+                exchange, args.min_quote_volume, args.max_symbols,
+                absolute_min_quote_volume=args.absolute_min_quote_volume,
+                include_tokenized_stocks=args.include_tokenized_stocks,
+            )
+            manifest["candidate_universe_size"] = len(markets)
+            batch = slice_market_candidates(markets, args.candidate_offset, args.candidate_limit)
+            symbols = [x[0] for x in batch]
             manifest["discovered_markets"] = [
-                {"symbol": s, "quote_volume_24h_usdt": round(v, 2), "macro_benchmark": b}
-                for s, v, b in markets
+                {"symbol": sym, "quote_volume_24h_usdt": round(volume, 2),
+                 "macro_benchmark": benchmark,
+                 "asset_class": ("tokenized_equity" if
+                     (exchange.market(sym).get("stock") or
+                      str(exchange.market(sym).get("base") or "").upper() in TOKENIZED_STOCK_BASES)
+                     else "crypto_or_unverified")}
+                for sym, volume, benchmark in batch
             ]
         else:
             symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
@@ -423,7 +468,9 @@ def main():
             f"Download complete: {len(manifest['downloaded'])} eligible, "
             f"{len(manifest['failed'])} skipped from {manifest['candidates_attempted']} attempted."
         )
-        if not manifest["downloaded"]:
+        if not symbols:
+            print(f"No candidates in batch offset={args.candidate_offset}; this batch is complete.")
+        elif not manifest["downloaded"]:
             raise RuntimeError("No complete datasets downloaded; inspect DATA INSUFFICIENT reasons in manifest.")
         if args.max_symbols > 0 and len(manifest["downloaded"]) < args.max_symbols:
             print(
@@ -436,7 +483,7 @@ def main():
             str(exchange.market(item["symbol"]).get("base") or item["symbol"].split("/")[0]).upper()
             for item in manifest["downloaded"]
         }
-        if not {"BTC", "ETH"}.issubset(downloaded_bases):
+        if args.candidate_offset == 0 and not {"BTC", "ETH"}.issubset(downloaded_bases):
             raise RuntimeError(
                 "BTC and ETH benchmark datasets are mandatory for the current strategy; "
                 f"validated benchmarks: {sorted(downloaded_bases.intersection({'BTC', 'ETH'}))}. "
