@@ -45,7 +45,6 @@ def signal_text(signal, risk_percent=None, max_notional=None):
         f"<b>A&amp;T TRENDHIVE  |  {direction}</b>\n"
         f"<b>{escape(signal.symbol)}</b>  ·  {strength} setup ({signal.score}/10)\n"
         f"🧠 Strategy: <b>{strategy_name}</b>\n"
-        f"🕓 Timeframe: <b>15m entry / 1H + 4H trend</b>\n"
         f"🎯 Entry: <code>{price(signal.entry)}</code>\n"
         f"🛑 Stop Loss: <code>{price(signal.stop_loss)}</code>\n"
         f"✅ TP1: <code>{price(signal.tp1)}</code>\n"
