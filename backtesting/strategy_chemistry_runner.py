@@ -245,6 +245,10 @@ def main():
             for strategy_name, item in accumulators.items():
                 train_trades = pd.concat(item["train"], ignore_index=True) if item["train"] else pd.DataFrame()
                 test_trades = pd.concat(item["test"], ignore_index=True) if item["test"] else pd.DataFrame()
+                if not train_trades.empty:
+                    train_trades["asset_class"] = summary[folder.name]["asset_class"]
+                if not test_trades.empty:
+                    test_trades["asset_class"] = summary[folder.name]["asset_class"]
                 train_metrics = metrics(train_trades) if not train_trades.empty else _empty_metrics()
                 test_metrics = metrics(test_trades) if not test_trades.empty else _empty_metrics()
                 record = {
@@ -288,15 +292,58 @@ def main():
                 })
     leaderboard = pd.DataFrame(rows)
     if not leaderboard.empty:
+        status_order = {
+            "PROMISING — NEEDS WALK-FORWARD": 0,
+            "EXPERIMENTAL — NOT APPROVED": 1,
+            "DATA INSUFFICIENT": 2,
+        }
+        leaderboard["_status_order"] = leaderboard["research_status"].map(status_order).fillna(3)
         leaderboard = leaderboard.sort_values(
-            ["research_status", "oos_profit_factor", "oos_net_r"],
+            ["_status_order", "oos_profit_factor", "oos_net_r"],
             ascending=[True, False, False], na_position="last",
-        )
+        ).drop(columns=["_status_order"])
     leaderboard.to_csv(output / "strategy_chemistry_leaderboard.csv", index=False)
     if not leaderboard.empty:
         for asset_class, label in (("crypto_or_unverified", "crypto"), ("tokenized_equity", "tokenized_equities")):
             subset = leaderboard[leaderboard["asset_class"] == asset_class]
             subset.to_csv(output / f"{label}_leaderboard.csv", index=False)
+
+    # Aggregate OOS outcomes across symbols, separately by timeframe and asset class.
+    oos_trades = trades_all[trades_all["sample_period"] == "OUT_OF_SAMPLE"] if not trades_all.empty else pd.DataFrame()
+    aggregate_rows = []
+    if not oos_trades.empty:
+        for (asset_class, timeframe, strategy_name), group in oos_trades.groupby(
+            ["asset_class", "timeframe", "strategy"], dropna=False
+        ):
+            result = metrics(group)
+            aggregate_rows.append({
+                "asset_class": asset_class, "timeframe": timeframe, "strategy": strategy_name,
+                "markets": int(group["symbol"].nunique()),
+                "research_status": classify(result, args.minimum_oos_trades),
+                "oos_trades": result.get("trades", 0),
+                "oos_win_rate_pct": result.get("win_rate_pct"),
+                "oos_profit_factor": result.get("profit_factor"),
+                "oos_net_r": result.get("net_r"),
+                "oos_max_drawdown_r": result.get("max_drawdown_r"),
+            })
+    aggregate = pd.DataFrame(aggregate_rows)
+    if not aggregate.empty:
+        status_order = {
+            "PROMISING — NEEDS WALK-FORWARD": 0,
+            "EXPERIMENTAL — NOT APPROVED": 1,
+            "DATA INSUFFICIENT": 2,
+        }
+        aggregate["_status_order"] = aggregate["research_status"].map(status_order).fillna(3)
+        aggregate = aggregate.sort_values(
+            ["_status_order", "oos_profit_factor", "oos_net_r"],
+            ascending=[True, False, False], na_position="last",
+        ).drop(columns=["_status_order"])
+    aggregate.to_csv(output / "strategy_chemistry_rankings.csv", index=False)
+    if not aggregate.empty:
+        for asset_class, label in (("crypto_or_unverified", "crypto"), ("tokenized_equity", "tokenized_equities")):
+            aggregate[aggregate["asset_class"] == asset_class].to_csv(
+                output / f"{label}_strategy_rankings.csv", index=False
+            )
     report = [
         "# A&T TrendHive — Strategy Chemistry Research", "",
         f"Fully validated markets analysed: {len(folders)}",
@@ -324,7 +371,8 @@ def main():
     print(f"Fully validated markets analysed: {len(folders)}")
     print(f"Incomplete/unapproved market folders excluded: {excluded_incomplete_folders}")
     print(f"Trade rows: {len(trades_all)}")
-    print(leaderboard.head(100).to_string(index=False) if not leaderboard.empty else "No qualifying trades")
+    print("Aggregate out-of-sample strategy rankings:")
+    print(aggregate.head(100).to_string(index=False) if not aggregate.empty else "No OOS trades to rank")
     print("RESEARCH ONLY — no live approval; historical funding excluded.")
 
 
