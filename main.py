@@ -306,15 +306,20 @@ async def _scan_one(symbol, sem, btc, eth):
             core, rs = None, None
             failures = {}
             candles, recent_4h, live = None, None, None
-            try:
+            async def core_attempt():
+                nonlocal candles, recent_4h, live
                 candles = await client.multi_timeframe(symbol, asyncio.Semaphore(1))
                 recent_4h = candles["4h"]
                 live = await client.live_price(symbol)
                 # Original 15m engine: exact same strategy and input arguments.
-                core = evaluate(
+                return evaluate(
                     symbol, candles, btc["trend"], eth["trend"], settings.min_score,
                     current_price=live, btc_return_6_pct=btc["return_6_pct"],
                     eth_return_6_pct=eth["return_6_pct"],
+                )
+            try:
+                core = await asyncio.wait_for(
+                    core_attempt(), timeout=max(60, settings.exchange_timeout_ms * 6 / 1000)
                 )
             except asyncio.CancelledError:
                 raise
@@ -323,19 +328,24 @@ async def _scan_one(symbol, sem, btc, eth):
                 log.warning("15m scan skipped %s: %s", symbol, type(exc).__name__)
 
             if settings.rs_engine_enabled:
+                async def rs_attempt():
+                    recent = recent_4h
+                    price = live
+                    if recent is None:
+                        recent = await client.candles(symbol, "4h")
+                    # Most markets need zero extra HTTP requests.
+                    if not precheck_recent_breakout(recent, btc, eth):
+                        return None
+                    if price is None:
+                        price = await client.live_price(symbol)
+                    extended = await client.extended_four_hour(symbol, recent)
+                    return evaluate_relative_strength(
+                        symbol, extended, price, btc, eth,
+                        ttl_seconds=settings.rs_signal_ttl_seconds,
+                    )
                 try:
-                    if recent_4h is None:
-                        recent_4h = await client.candles(symbol, "4h")
-                    # Most symbols fail the cheap 4H breakout test, requiring
-                    # no extra history or ticker requests.
-                    if precheck_recent_breakout(recent_4h, btc, eth):
-                        if live is None:
-                            live = await client.live_price(symbol)
-                        extended = await client.extended_four_hour(symbol, recent_4h)
-                        rs = evaluate_relative_strength(
-                            symbol, extended, live, btc, eth,
-                            ttl_seconds=settings.rs_signal_ttl_seconds,
-                        )
+                    # A slow 4H history fetch cannot discard a valid 15m signal.
+                    rs = await asyncio.wait_for(rs_attempt(), timeout=75)
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
@@ -343,16 +353,7 @@ async def _scan_one(symbol, sem, btc, eth):
                     log.warning("4H RS scan skipped %s: %s", symbol, type(exc).__name__)
             return symbol, [signal for signal in (core, rs) if signal is not None], failures
 
-        try:
-            return await asyncio.wait_for(
-                scan(), timeout=max(60, settings.exchange_timeout_ms * 6 / 1000)
-            )
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            log.warning("Scan timeout/error %s: %s", symbol, type(exc).__name__)
-            return symbol, [], {"CORE_15M": type(exc).__name__,
-                                "RS_4H": type(exc).__name__}
+        return await scan()
 
 
 async def run_scan(bot=None, chat_id=None):
