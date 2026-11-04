@@ -4,6 +4,8 @@ import time
 import ccxt.async_support as ccxt
 import pandas as pd
 
+from backtesting.download_bitget import is_excluded_non_crypto_base
+
 TIMEFRAMES = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000}
 
 
@@ -26,14 +28,20 @@ class MarketData:
     async def top_symbols(self, top_n=20, min_quote_volume=500000):
         symbols = [s for s, m in self.markets.items()
                    if m.get("active") is not False and m.get("swap") and m.get("linear")
-                   and m.get("quote") == "USDT" and m.get("settle") == "USDT"]
+                   and m.get("quote") == "USDT" and m.get("settle") in (None, "USDT")
+                   and not is_excluded_non_crypto_base(m.get("base"), market=m)]
         if not symbols:
             return []
         tickers = await self.exchange.fetch_tickers(symbols)
         ranked = []
         for symbol, ticker in tickers.items():
             last = ticker.get("last")
-            quote_volume = ticker.get("quoteVolume")
+            quote_volume = ticker.get("usdtVolume")
+            if quote_volume is None:
+                info = ticker.get("info") or {}
+                quote_volume = info.get("usdtVolume") if isinstance(info, dict) else None
+            if quote_volume is None:
+                quote_volume = ticker.get("quoteVolume")
             if quote_volume is None and last is not None and ticker.get("baseVolume") is not None:
                 quote_volume = float(last) * float(ticker["baseVolume"])
             try:
