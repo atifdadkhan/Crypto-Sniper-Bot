@@ -169,7 +169,7 @@ def main():
         "Aggregate screening requires at least 20 OOS trades across at least 5 markets.",
         "Duplicate canonical symbols are assigned to the earliest numeric source batch; later copies and their trades are excluded.",
         "See strategy_chemistry_duplicate_symbols.csv for the exact duplicate audit trail.",
-        "See strategy_chemistry_duplicate_symbols.csv for the exact duplicate audit trail.",\n        "Historical perpetual funding is not included. Results are research-only, not live approval.", "",
+        "Historical perpetual funding is not included. Results are research-only, not live approval.", "",
         "| Asset class | TF | Strategy | Markets | OOS trades | PF | Net R | Max DD R | Status |",
         "|---|---|---|---:|---:|---:|---:|---:|---|",
     ]
