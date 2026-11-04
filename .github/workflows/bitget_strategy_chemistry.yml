@@ -1,0 +1,118 @@
+name: Bitget Strategy Chemistry Research
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Completed or partially completed Bitget Full-Market Resumable Research run ID
+        required: true
+        default: "41805382357"
+        type: string
+      fee_slippage_pct:
+        description: Estimated round-trip fee plus slippage (% of notional)
+        required: true
+        default: "0.12"
+        type: string
+  workflow_run:
+    workflows: ["Bitget Full-Market Resumable Research"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  chemistry-backtest:
+    if: ${{ github.event_name == 'workflow_run' || inputs.source_run_id != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Restore available Bitget batch artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: at-trendhive-data-batch-*
+          merge-multiple: true
+          path: .
+          run-id: ${{ github.event.workflow_run.id || inputs.source_run_id }}
+          github-token: ${{ github.token }}
+      - name: Merge available batch manifests without pretending missing batches exist
+        env:
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id || inputs.source_run_id }}
+          SOURCE_CONCLUSION: ${{ github.event.workflow_run.conclusion || 'manual_dispatch' }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          folder = Path("batch_manifests")
+          files = sorted(folder.glob("manifest_*.json"))
+          if not files:
+              raise SystemExit("No batch manifests restored from the selected Bitget run.")
+          manifests = [json.loads(p.read_text()) for p in files]
+          offsets = sorted(int(p.stem.split("_")[1]) for p in files)
+          expected = list(range(0, 800, 20))
+          downloaded, failed, discovered = [], [], []
+          for item in manifests:
+              downloaded.extend(item.get("downloaded", []))
+              failed.extend(item.get("failed", []))
+              discovered.extend(item.get("discovered_markets", []))
+          unique_downloaded = {item["symbol"]: item for item in downloaded}
+          unique_discovered = {item["symbol"]: item for item in discovered if item.get("symbol")}
+          missing = sorted(set(expected) - set(offsets))
+          merged = {
+              "exchange": "Bitget",
+              "market_type": "linear USDT-settled perpetual swaps",
+              "asset_scope": "crypto plus tokenized equities; retain source classification",
+              "timeframes": ["15m", "1h", "4h", "1d"],
+              "source_run_id": os.environ["SOURCE_RUN_ID"],
+              "source_run_conclusion": os.environ["SOURCE_CONCLUSION"],
+              "completed_batch_offsets": offsets,
+              "expected_batch_offsets": expected,
+              "missing_batch_offsets": missing,
+              "dataset_completeness": "COMPLETE" if not missing else "PARTIAL — missing batches are not inferred",
+              "downloaded": list(unique_downloaded.values()),
+              "failed": failed,
+              "discovered_markets": list(unique_discovered.values()),
+              "eligible_count": len(unique_downloaded),
+              "candidate_universe_size": max((m.get("candidate_universe_size", 0) for m in manifests), default=0),
+              "candidates_attempted": sum(m.get("candidates_attempted", 0) for m in manifests),
+              "failed_market_count": len(failed),
+              "provenance": "Restored directly from Bitget Full-Market Resumable Research workflow artifacts."
+          }
+          if not unique_downloaded:
+              raise SystemExit("No eligible Bitget datasets were restored.")
+          Path("data").mkdir(exist_ok=True)
+          Path("data/download_manifest.json").write_text(json.dumps(merged, indent=2))
+          print(f"Restored {len(unique_downloaded)} markets from {len(offsets)} batches.")
+          print(f"Missing batch offsets: {missing}")
+          print(f"Dataset status: {merged['dataset_completeness']}")
+          PY
+      - name: Run fixed strategy combinations with chronological holdout
+        env:
+          FEE_SLIPPAGE_PCT: ${{ github.event.inputs.fee_slippage_pct || inputs.fee_slippage_pct || '0.12' }}
+        run: |
+          python -m pytest -q
+          python -m backtesting.strategy_chemistry_runner \
+            --data-dir data \
+            --fee-slippage-pct "$FEE_SLIPPAGE_PCT" \
+            --minimum-oos-trades 20 \
+            --output-dir backtest_results/strategy_chemistry
+      - name: Upload strategy chemistry reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: at-trendhive-strategy-chemistry-${{ github.event.workflow_run.id || inputs.source_run_id }}
+          path: |
+            data/download_manifest.json
+            backtest_results/strategy_chemistry/
+          if-no-files-found: warn
+          retention-days: 90
