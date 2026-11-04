@@ -112,6 +112,70 @@ class MarketData:
         return df.reset_index(drop=True)
 
 
+    async def extended_four_hour(self, symbol, recent, min_bars=330):
+        """Page real completed 4H candles for EMA300 warmup; never fabricate bars.
+
+        Called only when the cheaper latest-4H breakout/relative-strength
+        precheck passes. Normal 15m scanner's candle history is unchanged.
+        """
+        interval = TIMEFRAMES["4h"]
+        if recent is None or len(recent) < 100:
+            raise ValueError(f"DATA INSUFFICIENT: {symbol} missing recent 4H bars")
+        newest_close = int(recent.timestamp.iloc[-1]) + interval
+        now_ms = int(time.time() * 1000)
+        if newest_close > now_ms - 5000 or now_ms - newest_close > interval * 1.2:
+            raise ValueError(f"STALE DATA: {symbol} 4H")
+        rows = {
+            int(row.timestamp): [int(row.timestamp), float(row.open), float(row.high),
+                                 float(row.low), float(row.close), float(row.volume)]
+            for row in recent.itertuples(index=False)
+        }
+        # Bitget historical API page limits vary. Use small overlapping pages
+        # anchored immediately BEFORE the earliest collected timestamp.
+        for _ in range(6):
+            if len(rows) >= min_bars:
+                break
+            first = min(rows)
+            requested_since = first - 90 * interval
+            older = await self.exchange.fetch_ohlcv(
+                symbol, timeframe="4h", since=requested_since, limit=100
+            )
+            if not older:
+                break
+            for bar in older:
+                if len(bar) < 6:
+                    continue
+                ts = int(bar[0])
+                if ts + interval > now_ms - 5000 or ts > max(rows):
+                    continue
+                rows[ts] = bar[:6]
+            if min(rows) >= first:
+                break
+        if len(rows) < min_bars:
+            raise ValueError(f"DATA INSUFFICIENT: {symbol} 4H EMA300 warmup ({len(rows)} bars)")
+        frame = pd.DataFrame(
+            [rows[ts] for ts in sorted(rows)[-min_bars:]],
+            columns=["timestamp", "open", "high", "low", "close", "volume"],
+        )
+        times = pd.to_numeric(frame.timestamp, errors="coerce")
+        if times.isna().any() or (times.diff().dropna() != interval).any():
+            raise ValueError(f"DATA INSUFFICIENT: {symbol} 4H historical gap")
+        if int(times.iloc[-1]) + interval != newest_close:
+            raise ValueError(f"DATA INSUFFICIENT: {symbol} 4H history shifted")
+        vals = frame[["open", "high", "low", "close", "volume"]].apply(
+            pd.to_numeric, errors="coerce"
+        )
+        if vals.isna().any().any() or not vals.map(math.isfinite).all().all():
+            raise ValueError(f"DATA INSUFFICIENT: invalid {symbol} 4H history")
+        if ((vals[["open", "high", "low", "close"]] <= 0).any().any()
+                or (vals.volume < 0).any()
+                or (vals.high < vals[["open", "low", "close"]].max(axis=1)).any()
+                or (vals.low > vals[["open", "high", "close"]].min(axis=1)).any()):
+            raise ValueError(f"DATA INSUFFICIENT: invalid {symbol} 4H OHLC geometry")
+        frame[vals.columns] = vals
+        return frame.reset_index(drop=True)
+
+
     async def live_price(self, symbol):
         """Return a fresh last price; reject stale quotes and unusually wide spreads."""
         ticker = await self.exchange.fetch_ticker(symbol)
@@ -154,7 +218,8 @@ class MarketData:
 
 async def macro_snapshot(client, symbol):
     """Closed 4h BTC/ETH trend and 6-bar return for relative-strength gating."""
-    unknown = {"trend": "UNKNOWN", "return_6_pct": None}
+    unknown = {"trend": "UNKNOWN", "return_6_pct": None,
+               "return_7d_pct": None, "candle_close_ms": None}
     raw = await client.fetch_ohlcv(symbol, timeframe="4h", limit=100)
     if not raw or len(raw) < 60:
         return unknown
@@ -183,7 +248,9 @@ async def macro_snapshot(client, symbol):
     trend_value = ("BULLISH" if close.iloc[-1] > e9 > e21 > e50 else
                    "BEARISH" if close.iloc[-1] < e9 < e21 < e50 else "NEUTRAL")
     return {"trend": trend_value,
-            "return_6_pct": 100 * (float(close.iloc[-1]) / float(close.iloc[-7]) - 1)}
+            "return_6_pct": 100 * (float(close.iloc[-1]) / float(close.iloc[-7]) - 1),
+            "return_7d_pct": 100 * (float(close.iloc[-1]) / float(close.iloc[-43]) - 1),
+            "candle_close_ms": last_open + interval}
 
 
 async def macro_trend(client, symbol):
