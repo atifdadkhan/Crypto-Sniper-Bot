@@ -87,14 +87,13 @@ def _simulate_window(symbol, timeframe, bars, votes_by_index, strategy_name, sta
     for i in range(next_entry, len(view) - 1):
         row = view.iloc[i]
         votes = votes_by_index[i]
-        selected = None
+        selected_by_side = {}
         for side in ("LONG", "SHORT"):
             if strategy_name == BASELINE:
                 candidate = votes[side].get(BASELINE)
                 # A stricter range-regime guard is fixed in advance.
                 if candidate is not None and float(row.adx) <= 25 and float(row.vol_ratio) >= 0.65:
-                    selected = candidate
-                    break
+                    selected_by_side[side] = candidate
                 continue
             spec = COMBINATIONS[strategy_name]
             combined = combine_candidates(
@@ -102,9 +101,15 @@ def _simulate_window(symbol, timeframe, bars, votes_by_index, strategy_name, sta
                 required=spec["required"], min_votes=spec["min_votes"],
             )
             if combined is not None:
-                selected = combined
-                break
-        if selected is None:
+                selected_by_side[side] = combined
+        if len(selected_by_side) == 2:
+            long_votes, short_votes = len(votes["LONG"]), len(votes["SHORT"])
+            if long_votes == short_votes:
+                continue
+            selected = selected_by_side["LONG" if long_votes > short_votes else "SHORT"]
+        elif selected_by_side:
+            selected = next(iter(selected_by_side.values()))
+        else:
             continue
         selected.symbol = symbol
         selected.timestamp = str(
@@ -132,25 +137,18 @@ def _empty_metrics():
     }
 
 
-def evaluate_segment(symbol, timeframe, raw_segment, strategy_name, fee_slippage_pct):
+def prepare_segment(raw_segment):
+    """Calculate indicators and engine votes once, then reuse across every combination."""
     bars = enrich_for_engines(raw_segment)
     if len(bars) < 200:
-        return None, None, "DATA INSUFFICIENT: fewer than 200 indicator-ready candles"
+        return None, None, None, "DATA INSUFFICIENT: fewer than 200 indicator-ready candles"
     split = int(len(bars) * 0.60)
+    if split < 120 or (len(bars) - split) < 40:
+        return None, None, None, "DATA INSUFFICIENT: insufficient chronological holdout"
     votes_by_index = [None] * len(bars)
     for i in range(100, len(bars) - 1):
         votes_by_index[i] = signals_for_row(bars.iloc[i])
-    if split < 120 or (len(bars) - split) < 40:
-        return None, None, "DATA INSUFFICIENT: insufficient chronological holdout"
-    train = _simulate_window(
-        symbol, timeframe, bars.iloc[:split].copy(), votes_by_index, strategy_name, 100,
-        fee_slippage_pct, "IN_SAMPLE",
-    )
-    test = _simulate_window(
-        symbol, timeframe, bars.copy(), votes_by_index, strategy_name, split,
-        fee_slippage_pct, "OUT_OF_SAMPLE",
-    )
-    return train, test, None
+    return bars, votes_by_index, split, None
 
 
 def classify(oos, minimum_oos_trades):
@@ -201,33 +199,44 @@ def main():
         for timeframe in ALL_TIMEFRAMES:
             if timeframe not in frames:
                 continue
-            for strategy_name in strategies:
-                train_parts, test_parts, tested_segments, insufficient = [], [], 0, []
-                for segment in contiguous_segments(frames[timeframe], timeframe):
-                    if len(segment) < 200:
-                        continue
-                    train, test, reason = evaluate_segment(
-                        folder.name, timeframe, segment, strategy_name,
-                        args.fee_slippage_pct,
+            accumulators = {
+                name: {"train": [], "test": [], "segments": 0, "notes": []}
+                for name in strategies
+            }
+            for segment in contiguous_segments(frames[timeframe], timeframe):
+                if len(segment) < 200:
+                    continue
+                bars, votes_by_index, split, reason = prepare_segment(segment)
+                if reason:
+                    for item in accumulators.values():
+                        item["notes"].append(reason)
+                    continue
+                for strategy_name in strategies:
+                    train = _simulate_window(
+                        folder.name, timeframe, bars.iloc[:split].copy(), votes_by_index,
+                        strategy_name, 100, args.fee_slippage_pct, "IN_SAMPLE",
                     )
-                    if reason:
-                        insufficient.append(reason)
-                        continue
-                    tested_segments += 1
-                    if train is not None and not train.empty:
-                        train_parts.append(train)
-                    if test is not None and not test.empty:
-                        test_parts.append(test)
-                train_trades = pd.concat(train_parts, ignore_index=True) if train_parts else pd.DataFrame()
-                test_trades = pd.concat(test_parts, ignore_index=True) if test_parts else pd.DataFrame()
+                    test = _simulate_window(
+                        folder.name, timeframe, bars.copy(), votes_by_index,
+                        strategy_name, split, args.fee_slippage_pct, "OUT_OF_SAMPLE",
+                    )
+                    item = accumulators[strategy_name]
+                    item["segments"] += 1
+                    if not train.empty:
+                        item["train"].append(train)
+                    if not test.empty:
+                        item["test"].append(test)
+            for strategy_name, item in accumulators.items():
+                train_trades = pd.concat(item["train"], ignore_index=True) if item["train"] else pd.DataFrame()
+                test_trades = pd.concat(item["test"], ignore_index=True) if item["test"] else pd.DataFrame()
                 train_metrics = metrics(train_trades) if not train_trades.empty else _empty_metrics()
                 test_metrics = metrics(test_trades) if not test_trades.empty else _empty_metrics()
                 record = {
-                    "segments_tested": tested_segments,
+                    "segments_tested": item["segments"],
                     "in_sample": train_metrics,
                     "out_of_sample": test_metrics,
                     "research_status": classify(test_metrics, args.minimum_oos_trades),
-                    "notes": insufficient[:5],
+                    "notes": item["notes"][:5],
                 }
                 summary[folder.name]["strategies"].setdefault(timeframe, {})[strategy_name] = record
                 if not train_trades.empty:
