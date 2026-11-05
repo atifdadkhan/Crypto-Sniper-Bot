@@ -1,3 +1,4 @@
+"""Compact Telegram signal and help text. Presentation only; no strategy logic."""
 from html import escape
 
 
@@ -11,77 +12,57 @@ def price(value):
 
 
 def signal_text(signal, risk_percent=None, max_notional=None):
-    """Identify the exact signal engine; research 4H has a SINGLE 3R target."""
-    direction = "🟢 LONG" if signal.side == "LONG" else "🔴 SHORT"
-    if getattr(signal, "strategy_id", "CORE_15M") == "RS_4H":
-        return (
-            f"<b>A&amp;T TRENDHIVE  |  {direction}</b>\n"
-            f"<b>{escape(signal.symbol)}</b>\n"
-            f"🧠 Strategy: <b>4H Relative Strength Breakout</b>\n"
-            f"🧪 Experimental live-monitoring signal\n"
-            f"🎯 Entry: <code>{price(signal.entry)}</code>\n"
-            f"🛑 Stop Loss (2 ATR): <code>{price(signal.stop_loss)}</code>\n"
-            f"🏆 Target (3R): <code>{price(signal.tp2)}</code>\n"
-            f"⏳ Review time exit after 5 days; no automatic exit tracking.\n"
-            f"\n💡 Coin outperformed/underperformed BTC and ETH over 7 days; "
-            f"confirmed 4H breakout.\n"
-            f"⚠️ Historical research only; profitability is NOT guaranteed.\n"
-            f"⚠️ Skip if live price has moved away from the stated entry.\n"
-            f"<i>Signals only — all trades and exits are manual.</i>"
-        )
-
-    if getattr(signal, "strategy_id", "CORE_15M") == "SLOW_4H":
-        return (
-            f"<b>A&amp;T TRENDHIVE  |  {direction}</b>\n"
-            f"<b>{escape(signal.symbol)}</b>\n"
-            f"🧠 Strategy: <b>4H Slow Momentum Breakout</b>\n"
-            f"🧪 Experimental continuation signal | 4H\n"
-            f"🎯 Entry: <code>{price(signal.entry)}</code>\n"
-            f"🛑 Stop Loss (2.5 ATR): <code>{price(signal.stop_loss)}</code>\n"
-            f"🏆 Target (3R): <code>{price(signal.tp2)}</code>\n"
-            f"📏 SL distance: {float(signal.risk_distance_pct):.2f}% of position\n"
-            f"⏳ Review exit after 10 days; no auto exit/position tracking.\n"
-            f"💡 EMA120/EMA300 trend + 36-candle breakout; ADX/volume confirmed.\n"
-            f"⚠️ Experimental; profits are not assured. Skip stale entries.\n"
-            f"<i>Manual signals only — size your position to your loss limit.</i>"
-        )
-
-    strength = "Strong" if signal.score >= 9 else "Good"
-    if signal.setup == "Pullback" and signal.side == "LONG":
-        reason = "Price pulled back and buyers stepped in."
-    elif signal.setup == "Pullback":
-        reason = "Price pulled back and sellers stepped in."
+    """Mobile-first, at most ten lines. Keep exactly the strategy's levels."""
+    kind = getattr(signal, "strategy_id", "CORE_15M")
+    side = "🟢 LONG" if signal.side == "LONG" else "🔴 SHORT"
+    symbol = escape(str(signal.symbol))
+    if kind == "RS_4H":
+        strategy = "4H Relative Strength Breakout"
+        quality = "🧪 Experimental · Unscored"
+    elif kind == "SLOW_4H":
+        strategy = "4H Slow Momentum Breakout"
+        quality = "🧪 Experimental · Unscored"
     else:
-        reason = "Price retested a key level and confirmed the move."
-    strategy_name = ("15m Trend Pullback" if signal.setup == "Pullback"
-                     else "15m Breakout Retest")
-    macro_warning = ("⚠️ Counter-macro setup: coin is stronger than BTC/ETH; extra risk.\n"
-                     if getattr(signal, "counter_macro", False) else "")
-    return (
-        f"<b>A&amp;T TRENDHIVE  |  {direction}</b>\n"
-        f"<b>{escape(signal.symbol)}</b>  ·  {strength} setup ({signal.score}/10)\n"
-        f"🧠 Strategy: <b>{strategy_name}</b>\n"
-        f"🎯 Entry: <code>{price(signal.entry)}</code>\n"
-        f"🛑 Stop Loss: <code>{price(signal.stop_loss)}</code>\n"
-        f"✅ TP1: <code>{price(signal.tp1)}</code>\n"
-        f"🏆 TP2: <code>{price(signal.tp2)}</code>\n"
-        f"💡 {reason}\n"
-        f"{macro_warning}"
-        f"⚠️ If price has moved away from Entry, skip it.\n"
-        f"<i>Signal only — you place every trade manually.</i>"
-    )
+        strategy = ("15m Trend Pullback" if signal.setup == "Pullback"
+                    else "15m Breakout Retest")
+        quality = (f"⭐ {'Strong' if signal.score >= 9 else 'Good'} · "
+                   f"{signal.score}/10 (setup quality, not win probability)")
+
+    lines = [
+        f"🎯 <b>A&amp;T TRENDHIVE | {side}</b>",
+        f"<b>{symbol}</b> · {escape(strategy)}",
+        quality,
+        f"🎯 Entry: <code>{price(signal.entry)}</code>",
+        f"🛑 Stop Loss: <code>{price(signal.stop_loss)}</code>",
+    ]
+    if kind in ("RS_4H", "SLOW_4H"):
+        lines.append(f"🏆 Target (3R): <code>{price(signal.tp2)}</code>")
+        lines.append("⏳ Review after 5 days; no automatic exit." if kind == "RS_4H"
+                     else "⏳ Review after 10 days; no automatic exit.")
+    else:
+        lines.extend([
+            f"✅ TP1: <code>{price(signal.tp1)}</code>",
+            f"🏆 TP2: <code>{price(signal.tp2)}</code>",
+        ])
+    if getattr(signal, "counter_macro", False):
+        lines.append("⚠️ Counter-macro: higher risk.")
+    lines.append("⚠️ Skip if current price moved away from Entry.")
+    lines.append("<i>Manual signal only · Profit not guaranteed.</i>")
+    return "\n".join(lines)
 
 
 def help_text():
     return (
-        "🤖 <b>A&amp;T TrendHive Crypto Sniper</b>\n\n"
-        "/scan — scan liquid markets now\n"
-        "/analyze BTC — analyze a single eligible coin\n"
-        "/status — bot and scanner status\n"
-        "/settings — current scanner settings\n"
-        "/history — delivered signals\n"
-        "/help — commands\n\n"
-        "Dual engines: 15m Pullback/Retest + 4H Relative Strength / Slow Momentum.\n"
-        "Markets: Bitget USDT-margined perpetual swaps. LONG/SHORT alerts only. "
-        "No automatic trading or order placement."
+        "🤖 <b>A&amp;T TRENDHIVE | CRYPTO SNIPER</b>\n"
+        "━━━━━━━━━━━━━━━━━\n"
+        "🔎 <b>Analyze Coin</b> — select the button and send BTC, SOL, etc.\n"
+        "🔍 <b>Scan Market</b> — scan eligible Bitget markets.\n"
+        "📊 <b>Market Status</b> — latest scanner report.\n"
+        "📚 <b>Signal History</b> — delivered alerts only.\n"
+        "⚙️ <b>Settings</b> — current risk and scanner settings.\n\n"
+        "<b>Quick commands</b>\n"
+        "/analyze BTC · /scan · /status · /history · /settings · /help\n\n"
+        "15m Pullback/Retest covers eligible markets; experimental 4H "
+        "Relative Strength / Slow Momentum covers the liquid top-20 watch.\n"
+        "<i>Bitget public USDT perpetual data · Signals only · No auto trading.</i>"
     )
