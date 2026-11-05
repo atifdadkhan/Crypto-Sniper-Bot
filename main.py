@@ -17,6 +17,7 @@ from flask import Flask, jsonify
 from waitress import serve
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
 from config import load_settings
@@ -68,15 +69,24 @@ if isinstance(state.get("last_scan_result"), dict):
     last_scan_result.update(state["last_scan_result"])
 last_scan_result["delivery_pending"] = len(outbox.items)
 last_delivery_error = None
+manual_scan_task = None
+manual_coin_task = None
+market_refresh_task = None
 
 MAIN_MENU = InlineKeyboardMarkup([
-    [InlineKeyboardButton("🔍 SCAN NOW", callback_data="menu:scan"),
-     InlineKeyboardButton("📊 MARKET STATUS", callback_data="menu:status")],
-    [InlineKeyboardButton("🔎 ANALYZE COIN", callback_data="menu:analyze")],
-    [InlineKeyboardButton("📚 SIGNAL HISTORY", callback_data="menu:history"),
-     InlineKeyboardButton("⚙️ SETTINGS", callback_data="menu:settings")],
-    [InlineKeyboardButton("🔄 REFRESH MARKETS", callback_data="menu:refresh"),
-     InlineKeyboardButton("❔ HELP", callback_data="menu:help")],
+    [InlineKeyboardButton("🔎 Analyze Coin", callback_data="menu:analyze"),
+     InlineKeyboardButton("🔍 Scan Market", callback_data="menu:scan")],
+    [InlineKeyboardButton("📊 Market Status", callback_data="menu:status"),
+     InlineKeyboardButton("📚 Signal History", callback_data="menu:history")],
+    [InlineKeyboardButton("⚙️ Settings", callback_data="menu:settings"),
+     InlineKeyboardButton("❔ Help", callback_data="menu:help")],
+])
+BACK_MENU = InlineKeyboardMarkup([
+    [InlineKeyboardButton("⬅️ Back to Menu", callback_data="menu:home")]
+])
+SETTINGS_MENU = InlineKeyboardMarkup([
+    [InlineKeyboardButton("🔄 Refresh Markets", callback_data="menu:refresh")],
+    [InlineKeyboardButton("⬅️ Back to Menu", callback_data="menu:home")]
 ])
 health_app = Flask(__name__)
 
@@ -132,28 +142,71 @@ def _save_history():
 
 
 def _scan_summary():
-    return (f"📡 Last scan: {state.get('last_scan') or 'Not yet'}\n"
-            f"Checked: {last_scan_result['symbols']} / {last_scan_result['universe']} markets\n"
-            f"Rotating batch: {last_scan_result['scan_batch']}\n"
-            f"Alerts delivered: {last_scan_result['signals']}\n"
-            f"15m engine queued: {last_scan_result.get('core15m_queued', 0)}\n"
-            f"4H RS queued: {last_scan_result.get('rs4h_queued', 0)}\n"
-            f"4H Slow Momentum queued: {last_scan_result.get('slow4h_queued', 0)}\n"
-            f"4H liquid universe: {last_scan_result.get('four_hour_watch', 0)} markets\n"
-            f"4H-only extra checks: {last_scan_result.get('four_hour_extra', 0)}\n"
-            f"4H RS data errors: {last_scan_result.get('rs4h_errors', 0)}\n"
-            f"Skipped (data/errors): {last_scan_result['skipped']}\n"
-            f"No valid setup: {last_scan_result['no_setup']}\n"
-            f"Pending Telegram alerts: {len(outbox.items)}\n"
-            f"Last error: {state.get('last_error') or 'None'}\n"
-            f"Signals only. No exchange orders.")
+    result = last_scan_result
+    return (
+        "📊 <b>MARKET STATUS</b>\n"
+        "━━━━━━━━━━━━━━━━━\n"
+        f"🕒 Last scan: <code>{escape(str(state.get('last_scan') or 'Not yet'))}</code>\n"
+        f"🔍 Checked: <b>{result['symbols']} / {result['universe']}</b> markets\n"
+        f"15m rotating batch: {result['scan_batch']}\n"
+        f"4H liquid watch: {result.get('four_hour_watch', 0)}\n"
+        f"4H additional checks: {result.get('four_hour_extra', 0)}\n"
+        "━━━━━━━━━━━━━━━━━\n"
+        f"📨 Delivered: {result['signals']} | Pending: {len(outbox.items)}\n"
+        f"15m alerts queued: {result.get('core15m_queued', 0)}\n"
+        f"4H RS / Slow queued: {result.get('rs4h_queued', 0)} / "
+        f"{result.get('slow4h_queued', 0)}\n"
+        f"⚠️ 15m data skips: {result['skipped']}\n"
+        f"⚠️ 4H data skips: {result.get('rs4h_errors', 0)}\n"
+        f"⏸ No setup: {result['no_setup']}\n"
+        f"Last error: {escape(str(state.get('last_error') or 'None'))}\n\n"
+        "<i>Manual signals only. Zero alerts can be normal.</i>"
+    )
+
+
+def _settings_text():
+    return (
+        "⚙️ <b>SCANNER SETTINGS</b>\n"
+        "━━━━━━━━━━━━━━━━━\n"
+        f"Markets: Top {settings.top_n or 'all eligible'}\n"
+        f"Min 24h volume: {settings.min_quote_volume:,.0f} USDT\n"
+        f"Signal quality floor: {settings.min_score}/10\n"
+        f"Scan interval: {settings.scan_seconds // 60} min\n"
+        f"15m batch: {settings.scan_batch_size or 'All'}\n"
+        f"4H research engine: {'ON' if settings.rs_engine_enabled else 'OFF'}\n"
+        f"4H liquid watch: top {settings.four_hour_top_n}\n"
+        f"Cooldown: {settings.cooldown_minutes} min\n"
+        f"Risk reference: {settings.risk_percent:.2f}%\n"
+        f"Position notional cap: {settings.max_position_notional:.2f} USDT\n\n"
+        "<i>Read-only configuration · No automatic orders.</i>"
+    )
+
+
+def _history_text():
+    if not history:
+        return "📚 <b>SIGNAL HISTORY</b>\nNo delivered signals recorded yet."
+    lines = ["📚 <b>RECENT DELIVERED SIGNALS</b>", "━━━━━━━━━━━━━━━━━"]
+    for item in reversed(history[-8:]):
+        symbol = escape(str(item.get("symbol", "?")))
+        side = escape(str(item.get("side", "?")))
+        strategy = item.get("strategy_name") or (
+            "15m Trend Pullback" if item.get("setup") == "Pullback"
+            else "15m Breakout Retest"
+        )
+        stamp = escape(str(item.get("timestamp", ""))[:16].replace("T", " "))
+        lines.append(f"• <b>{symbol}</b> · {side}\n"
+                     f"  {escape(str(strategy))} · {stamp}")
+    lines.append("\n<i>Only confirmed Telegram deliveries, not trade fills.</i>")
+    return "\n".join(lines)
 
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not authorized(update):
         return await deny(update)
-    await update.effective_message.reply_text(help_text(), parse_mode=ParseMode.HTML,
-                                               reply_markup=MAIN_MENU)
+    context.user_data.pop("awaiting_coin", None)
+    await update.effective_message.reply_text(
+        help_text(), parse_mode=ParseMode.HTML, reply_markup=MAIN_MENU
+    )
 
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -163,111 +216,134 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def settings_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not authorized(update):
         return await deny(update)
-    msg = (f"⚙️ <b>Settings</b>\nTop market cap: {settings.top_n or 'All'}\n"
-           f"Min 24H USDT volume: {settings.min_quote_volume:,.0f}\n"
-           f"Signal score: {settings.min_score}/10\n"
-           f"Scan interval: {settings.scan_seconds}s\n"
-           f"Batch per scan: {settings.scan_batch_size or 'All'}\n"
-           f"Concurrent pairs: {settings.concurrency}\n"
-           f"15m alert expiry: {settings.signal_ttl_seconds}s\n"
-           f"4H engine: {'ON' if settings.rs_engine_enabled else 'OFF'}\n"
-           f"4H liquidity cap: Top {settings.four_hour_top_n}\n"
-           f"4H RS expiry: {settings.rs_signal_ttl_seconds}s\n"
-           f"Cooldown: {settings.cooldown_minutes} min\n"
-           f"Risk reference: {settings.risk_percent:.2f}%\n"
-           f"Notional cap: {settings.max_position_notional:.2f} USDT\n\n"
-           "Manual signals only; no orders are sent.")
-    await update.effective_message.reply_text(msg, parse_mode=ParseMode.HTML,
-                                               reply_markup=MAIN_MENU)
+    await update.effective_message.reply_text(
+        _settings_text(), parse_mode=ParseMode.HTML, reply_markup=SETTINGS_MENU
+    )
 
 
 async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not authorized(update):
         return await deny(update)
-    await update.effective_message.reply_text(_scan_summary(), reply_markup=MAIN_MENU)
+    await update.effective_message.reply_text(
+        _scan_summary(), parse_mode=ParseMode.HTML, reply_markup=BACK_MENU
+    )
 
 
 async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not authorized(update):
         return await deny(update)
-    if not history:
-        return await update.effective_message.reply_text("No delivered signals recorded yet.",
-                                                         reply_markup=MAIN_MENU)
-    lines = ["📚 <b>Delivered signals</b>"]
-    from html import escape
-    for item in reversed(history[-10:]):
-        lines.append(f"• {escape(str(item.get('side', '?')))} "
-                     f"{escape(str(item.get('symbol', '?')))} — "
-                     f"{escape(str(item.get('strategy_name') or ('15m Trend Pullback' if item.get('setup') == 'Pullback' else '15m Breakout Retest')))} — "
-                     f"{escape(str(item.get('timestamp', ''))[:16])}")
-    await update.effective_message.reply_text("\n".join(lines),
-                                              parse_mode=ParseMode.HTML, reply_markup=MAIN_MENU)
+    await update.effective_message.reply_text(
+        _history_text(), parse_mode=ParseMode.HTML, reply_markup=BACK_MENU
+    )
+
+
+async def _panel(query, text, keyboard=BACK_MENU):
+    """Edit a navigation panel in place, but never overwrite a trade alert."""
+    current = getattr(query.message, "text", "") or ""
+    # Delivered signal messages have level fields and must remain visible
+    # in the chat history when the attached menu is pressed.
+    is_trade_alert = "Entry:" in current and "Stop Loss" in current
+    if is_trade_alert:
+        return await query.message.reply_text(
+            text, parse_mode=ParseMode.HTML, reply_markup=keyboard,
+        )
+    try:
+        return await query.edit_message_text(
+            text, parse_mode=ParseMode.HTML, reply_markup=keyboard,
+        )
+    except BadRequest as exc:
+        if "message is not modified" in str(exc).lower():
+            return None
+        raise
+
+
+async def _background_manual_scan(progress, bot, chat_id):
+    try:
+        report = await run_scan(bot, chat_id)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        log.warning("Manual scan failed: %s", type(exc).__name__)
+        report = "⚠️ Market scan unavailable. Check scanner status."
+    try:
+        await progress.edit_text(report, reply_markup=MAIN_MENU)
+    except Exception as exc:
+        log.warning("Unable to update scan progress: %s", type(exc).__name__)
+
+
+async def _background_market_refresh(progress):
+    try:
+        if scan_lock.locked() or coin_analysis_lock.locked():
+            report = "⏳ Scanner busy. Refresh markets after the current scan."
+        else:
+            await asyncio.wait_for(client.initialize(), timeout=60)
+            report = f"✅ Market metadata refreshed: {len(client.markets)} markets."
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        log.warning("Market refresh failed: %s", type(exc).__name__)
+        report = "⚠️ Market refresh unavailable. Check Render logs."
+    try:
+        await progress.edit_text(report, reply_markup=MAIN_MENU)
+    except Exception as exc:
+        log.warning("Unable to update refresh progress: %s", type(exc).__name__)
 
 
 async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global manual_scan_task, market_refresh_task
     query = update.callback_query
     if not authorized(update):
-        await query.answer("Admin only.", show_alert=True)
-        return
+        return await query.answer("Admin only.", show_alert=True)
+    # Acknowledge the button tap first. Network-bound work is scheduled outside
+    # the update callback so the Telegram menu remains responsive.
     await query.answer()
     action = (query.data or "").partition(":")[2]
+    if action == "home":
+        context.user_data.pop("awaiting_coin", None)
+        return await _panel(query, help_text(), MAIN_MENU)
     if action == "analyze":
         context.user_data["awaiting_coin"] = True
-        return await query.message.reply_text(
-            "🔎 Send a coin symbol (e.g. BTC, SOL, BTCUSDT), or use /analyze BTC.\\n"
-            "Analysis uses valid Bitget USDT perpetual markets only.",
-            reply_markup=MAIN_MENU,
+        return await _panel(
+            query,
+            "🔎 <b>ANALYZE COIN</b>\n\n"
+            "Send a symbol: <code>BTC</code>, <code>SOL</code>, "
+            "<code>BTCUSDT</code>.\n"
+            "Or use <code>/analyze BTC</code>.\n\n"
+            "Only active, liquid Bitget USDT perpetual markets are eligible.",
+            BACK_MENU,
         )
     if action == "help":
-        return await query.message.reply_text(help_text(), parse_mode=ParseMode.HTML,
-                                              reply_markup=MAIN_MENU)
+        return await _panel(query, help_text(), BACK_MENU)
     if action == "settings":
-        return await _show_settings(query, context)
+        return await _panel(query, _settings_text(), SETTINGS_MENU)
     if action == "status":
-        return await query.message.reply_text(_scan_summary(), reply_markup=MAIN_MENU)
+        return await _panel(query, _scan_summary(), BACK_MENU)
     if action == "history":
-        return await _show_history(query, context)
+        return await _panel(query, _history_text(), BACK_MENU)
     if action == "refresh":
-        try:
-            await client.initialize()
-            return await query.message.reply_text(
-                f"🔄 Market metadata refreshed: {len(client.markets)} entries.",
-                reply_markup=MAIN_MENU)
-        except Exception as exc:
-            log.warning("Market refresh failed: %s", type(exc).__name__)
-            return await query.message.reply_text("Market refresh failed. Check /status and Render logs.",
-                                                  reply_markup=MAIN_MENU)
+        if market_refresh_task is not None and not market_refresh_task.done():
+            return await _panel(query, "⏳ Refresh already running.", SETTINGS_MENU)
+        if scan_lock.locked() or coin_analysis_lock.locked():
+            return await _panel(query, "⏳ Scanner is busy; try refresh later.", SETTINGS_MENU)
+        progress = await query.message.reply_text("🔄 Updating Bitget market list…")
+        market_refresh_task = context.application.create_task(
+            _background_market_refresh(progress),
+            name="manual_market_refresh",
+        )
+        return
     if action == "scan":
-        message = await query.message.reply_text("🔍 Scanning validated Bitget markets…")
-        result = await run_scan(context.bot, settings.admin_id)
-        return await message.edit_text(result, reply_markup=MAIN_MENU)
-
-
-async def _show_settings(query, context):
-    # Reuse the command handler without relying on callback messages being text updates.
-    msg = (f"⚙️ <b>Settings</b>\nMin score: {settings.min_score}/10\n"
-           f"Market cap: {settings.top_n or 'All'}\n"
-           f"Batch per scan: {settings.scan_batch_size or 'All'}\n"
-           f"Cooldown: {settings.cooldown_minutes}m\n"
-           f"15m expiry: {settings.signal_ttl_seconds}s\n"
-           f"4H engine: {'ON' if settings.rs_engine_enabled else 'OFF'}\n"
-           f"4H liquid top: {settings.four_hour_top_n}\n"
-           f"4H RS expiry: {settings.rs_signal_ttl_seconds}s\n"
-           f"Scan interval: {settings.scan_seconds}s\nNo auto trading.")
-    await query.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=MAIN_MENU)
-
-
-async def _show_history(query, context):
-    if not history:
-        return await query.message.reply_text("No delivered signals yet.", reply_markup=MAIN_MENU)
-    from html import escape
-    lines = ["📚 <b>Delivered signals</b>"]
-    for item in reversed(history[-10:]):
-        lines.append(f"• {escape(str(item.get('side', '?')))} "
-                     f"{escape(str(item.get('symbol', '?')))} — "
-                     f"{escape(str(item.get('strategy_name') or ('15m Trend Pullback' if item.get('setup') == 'Pullback' else '15m Breakout Retest')))}")
-    await query.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML,
-                                   reply_markup=MAIN_MENU)
+        if scan_lock.locked() or (
+            manual_scan_task is not None and not manual_scan_task.done()
+        ):
+            return await _panel(query, "⏳ A market scan is already running.", BACK_MENU)
+        progress = await query.message.reply_text(
+            "🔍 Market scan started. You can still use the menu."
+        )
+        manual_scan_task = context.application.create_task(
+            _background_manual_scan(progress, context.bot, settings.admin_id),
+            name="manual_market_scan",
+        )
+        return
 
 
 async def _deliver_pending(bot, chat_id, limit=5):
@@ -579,15 +655,7 @@ async def run_coin_analysis(symbol):
         )
 
 
-async def _reply_coin_analysis(message, raw_symbol):
-    symbol = normalize_coin(raw_symbol)
-    if symbol is None:
-        await message.reply_text(
-            "Invalid coin symbol. Example: /analyze BTC or /analyze SOL.",
-            reply_markup=MAIN_MENU,
-        )
-        return
-    pending = await message.reply_text(f"🔎 Analyzing {escape(symbol)}…")
+async def _background_coin_analysis(progress, symbol):
     try:
         result = await run_coin_analysis(symbol)
     except asyncio.CancelledError:
@@ -597,7 +665,39 @@ async def _reply_coin_analysis(message, raw_symbol):
                     type(exc).__name__, safe_failure_reason(exc))
         result = ("⚠️ Coin analysis temporarily unavailable. "
                   "Market data could not be validated; no signal generated.")
-    await pending.edit_text(result, parse_mode=ParseMode.HTML, reply_markup=MAIN_MENU)
+    try:
+        await progress.edit_text(
+            result, parse_mode=ParseMode.HTML, reply_markup=MAIN_MENU
+        )
+    except Exception as exc:
+        log.warning("Unable to update analysis result: %s", type(exc).__name__)
+
+
+async def _reply_coin_analysis(message, raw_symbol, application):
+    global manual_coin_task
+    symbol = normalize_coin(raw_symbol)
+    if symbol is None:
+        return await message.reply_text(
+            "⚠️ Invalid coin. Use /analyze BTC or /analyze SOL.",
+            reply_markup=MAIN_MENU,
+        )
+    if scan_lock.locked():
+        return await message.reply_text(
+            "⏳ Market scan in progress; try analysis after it finishes.",
+            reply_markup=MAIN_MENU,
+        )
+    if manual_coin_task is not None and not manual_coin_task.done():
+        return await message.reply_text(
+            "⏳ Another coin analysis is running; try again shortly.",
+            reply_markup=MAIN_MENU,
+        )
+    progress = await message.reply_text(
+        f"🔎 Analyzing {escape(symbol)}… Menu is still responsive."
+    )
+    manual_coin_task = application.create_task(
+        _background_coin_analysis(progress, symbol),
+        name="manual_coin_analysis",
+    )
 
 
 async def analyze_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -606,26 +706,42 @@ async def analyze_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         context.user_data["awaiting_coin"] = True
         return await update.effective_message.reply_text(
-            "🔎 Enter a coin name, e.g. BTC, SOL or 1000PEPE. "
-            "Or use /analyze BTC.", reply_markup=MAIN_MENU
+            "🔎 Send a coin symbol like BTC, SOL or 1000PEPE. "
+            "Or use /analyze BTC.", reply_markup=BACK_MENU,
         )
     context.user_data.pop("awaiting_coin", None)
-    await _reply_coin_analysis(update.effective_message, " ".join(context.args))
+    await _reply_coin_analysis(
+        update.effective_message, " ".join(context.args), context.application
+    )
 
 
 async def analyze_coin_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not authorized(update) or not context.user_data.get("awaiting_coin"):
         return
     context.user_data.pop("awaiting_coin", None)
-    await _reply_coin_analysis(update.effective_message, update.effective_message.text)
+    await _reply_coin_analysis(
+        update.effective_message, update.effective_message.text,
+        context.application,
+    )
 
 
 async def scan_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global manual_scan_task
     if not authorized(update):
         return await deny(update)
-    msg = await update.effective_message.reply_text("🔍 Scanning Bitget USDT perpetual markets…")
-    result = await run_scan(context.bot, settings.admin_id)
-    await msg.edit_text(result, reply_markup=MAIN_MENU)
+    if scan_lock.locked() or (
+        manual_scan_task is not None and not manual_scan_task.done()
+    ):
+        return await update.effective_message.reply_text(
+            "⏳ A market scan is already running.", reply_markup=MAIN_MENU
+        )
+    progress = await update.effective_message.reply_text(
+        "🔍 Market scan started. You can still use the menu."
+    )
+    manual_scan_task = context.application.create_task(
+        _background_manual_scan(progress, context.bot, settings.admin_id),
+        name="manual_market_scan",
+    )
 
 
 async def scheduled_scan(context: ContextTypes.DEFAULT_TYPE):
@@ -671,7 +787,8 @@ async def post_shutdown(application: Application):
 def main():
     threading.Thread(target=run_health_server, daemon=True, name="health-server").start()
     app = (Application.builder().token(settings.telegram_token)
-           .post_init(post_init).post_shutdown(post_shutdown).build())
+           .post_init(post_init).post_shutdown(post_shutdown)
+           .concurrent_updates(4).build())
     for command, handler in (
         ("start", start_cmd), ("help", help_cmd), ("scan", scan_cmd),
         ("analyze", analyze_cmd),
@@ -679,7 +796,7 @@ def main():
     ):
         app.add_handler(CommandHandler(command, handler))
     app.add_handler(CallbackQueryHandler(
-        menu_callback, pattern=r"^menu:(scan|analyze|status|history|settings|help|refresh)$"
+        menu_callback, pattern=r"^menu:(scan|analyze|status|history|settings|help|refresh|home)$"
     ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, analyze_coin_text))
     log.info("A&T TrendHive Crypto Sniper — signals only, no order placement")
