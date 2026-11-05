@@ -298,6 +298,8 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # the update callback so the Telegram menu remains responsive.
     await query.answer()
     action = (query.data or "").partition(":")[2]
+    if action != "analyze":
+        context.user_data.pop("awaiting_coin", None)
     if action == "home":
         context.user_data.pop("awaiting_coin", None)
         return await _panel(query, help_text(), MAIN_MENU)
