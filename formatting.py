@@ -76,6 +76,7 @@ def help_text():
     return (
         "🤖 <b>A&amp;T TrendHive Crypto Sniper</b>\n\n"
         "/scan — scan liquid markets now\n"
+        "/analyze BTC — analyze a single eligible coin\n"
         "/status — bot and scanner status\n"
         "/settings — current scanner settings\n"
         "/history — delivered signals\n"

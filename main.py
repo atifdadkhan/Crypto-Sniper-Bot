@@ -3,6 +3,7 @@
 No authenticated exchange endpoints, private keys or order-placement functions.
 """
 import asyncio
+from html import escape
 import logging
 import os
 import threading
@@ -16,7 +17,7 @@ from flask import Flask, jsonify
 from waitress import serve
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.constants import ParseMode
-from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
 from config import load_settings
 from exchange import MarketData, macro_snapshot
@@ -24,6 +25,7 @@ from strategy import evaluate
 from relative_strength import evaluate_relative_strength, precheck_recent_breakout
 from slow_momentum import evaluate_slow_momentum, precheck_slow_momentum
 from formatting import signal_text, help_text
+from single_coin import normalize_coin, format_analysis
 from delivery import AlertOutbox
 from scan_diagnostics import safe_failure_reason
 from utils import load_json, atomic_json, cooldown_active
@@ -54,6 +56,7 @@ if not isinstance(history, list):
 
 outbox = AlertOutbox(data_dir / "telegram_outbox.json", settings.signal_ttl_seconds)
 scan_lock = asyncio.Lock()
+coin_analysis_lock = asyncio.Lock()
 delivery_lock = asyncio.Lock()
 client = MarketData(settings.exchange_timeout_ms, settings.request_rate_limit)
 last_scan_result = {"symbols": 0, "signals": 0, "skipped": 0, "no_setup": 0,
@@ -69,6 +72,7 @@ last_delivery_error = None
 MAIN_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("🔍 SCAN NOW", callback_data="menu:scan"),
      InlineKeyboardButton("📊 MARKET STATUS", callback_data="menu:status")],
+    [InlineKeyboardButton("🔎 ANALYZE COIN", callback_data="menu:analyze")],
     [InlineKeyboardButton("📚 SIGNAL HISTORY", callback_data="menu:history"),
      InlineKeyboardButton("⚙️ SETTINGS", callback_data="menu:settings")],
     [InlineKeyboardButton("🔄 REFRESH MARKETS", callback_data="menu:refresh"),
@@ -207,6 +211,13 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await query.answer()
     action = (query.data or "").partition(":")[2]
+    if action == "analyze":
+        context.user_data["awaiting_coin"] = True
+        return await query.message.reply_text(
+            "🔎 Send a coin symbol (e.g. BTC, SOL, BTCUSDT), or use /analyze BTC.\\n"
+            "Analysis uses valid Bitget USDT perpetual markets only.",
+            reply_markup=MAIN_MENU,
+        )
     if action == "help":
         return await query.message.reply_text(help_text(), parse_mode=ParseMode.HTML,
                                               reply_markup=MAIN_MENU)
@@ -522,6 +533,93 @@ async def run_scan(bot=None, chat_id=None):
                 await asyncio.gather(*tasks, return_exceptions=True)
 
 
+async def run_coin_analysis(symbol):
+    """Manual read-only dual-engine evaluation, never an alert or automatic order."""
+    if coin_analysis_lock.locked():
+        return "⏳ Another coin analysis is running. Try again shortly."
+    # Keep automated scans the priority on the free Render instance.
+    if scan_lock.locked():
+        return "⏳ Market scan in progress. Try /analyze again after it completes."
+    async with coin_analysis_lock:
+        if not client.markets:
+            await asyncio.wait_for(client.initialize(), timeout=60)
+        # Full liquidity ranking is point-in-time, matching live scanner eligibility.
+        all_symbols = await asyncio.wait_for(
+            client.top_symbols(settings.top_n, settings.min_quote_volume),
+            timeout=120,
+        )
+        if symbol not in all_symbols:
+            return ("⏸ <b>WAIT — not eligible</b>\\n"
+                    f"{escape(symbol)} is not in the current active, liquid "
+                    "Bitget USDT perpetual scanner universe. "
+                    "No trade levels or signals were generated.")
+        four_hour_eligible = bool(
+            settings.rs_engine_enabled and
+            symbol in all_symbols[:settings.four_hour_top_n]
+        )
+        snapshots = await asyncio.gather(
+            macro_snapshot(client.exchange, "BTC/USDT:USDT"),
+            macro_snapshot(client.exchange, "ETH/USDT:USDT"),
+            return_exceptions=True,
+        )
+        btc = (snapshots[0] if isinstance(snapshots[0], dict)
+               else {"trend": "UNKNOWN", "return_6_pct": None})
+        eth = (snapshots[1] if isinstance(snapshots[1], dict)
+               else {"trend": "UNKNOWN", "return_6_pct": None})
+        _, signals, failures = await asyncio.wait_for(
+            _scan_one(symbol, asyncio.Semaphore(1), btc, eth,
+                      core_enabled=True, four_hour_enabled=four_hour_eligible),
+            timeout=max(150, settings.exchange_timeout_ms * 10 / 1000),
+        )
+        return format_analysis(
+            symbol, btc, eth, signals, failures,
+            four_hour_eligible=four_hour_eligible,
+            core_ttl_seconds=settings.signal_ttl_seconds,
+            four_hour_enabled=settings.rs_engine_enabled,
+        )
+
+
+async def _reply_coin_analysis(message, raw_symbol):
+    symbol = normalize_coin(raw_symbol)
+    if symbol is None:
+        await message.reply_text(
+            "Invalid coin symbol. Example: /analyze BTC or /analyze SOL.",
+            reply_markup=MAIN_MENU,
+        )
+        return
+    pending = await message.reply_text(f"🔎 Analyzing {escape(symbol)}…")
+    try:
+        result = await run_coin_analysis(symbol)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        log.warning("Single-coin analysis unavailable: %s (reason=%s)",
+                    type(exc).__name__, safe_failure_reason(exc))
+        result = ("⚠️ Coin analysis temporarily unavailable. "
+                  "Market data could not be validated; no signal generated.")
+    await pending.edit_text(result, parse_mode=ParseMode.HTML, reply_markup=MAIN_MENU)
+
+
+async def analyze_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not authorized(update):
+        return await deny(update)
+    if not context.args:
+        context.user_data["awaiting_coin"] = True
+        return await update.effective_message.reply_text(
+            "🔎 Enter a coin name, e.g. BTC, SOL or 1000PEPE. "
+            "Or use /analyze BTC.", reply_markup=MAIN_MENU
+        )
+    context.user_data.pop("awaiting_coin", None)
+    await _reply_coin_analysis(update.effective_message, " ".join(context.args))
+
+
+async def analyze_coin_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not authorized(update) or not context.user_data.get("awaiting_coin"):
+        return
+    context.user_data.pop("awaiting_coin", None)
+    await _reply_coin_analysis(update.effective_message, update.effective_message.text)
+
+
 async def scan_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not authorized(update):
         return await deny(update)
@@ -540,6 +638,7 @@ async def post_init(application: Application):
         await application.bot.set_my_commands([
             BotCommand("start", "Open the main menu"),
             BotCommand("scan", "Scan eligible markets now"),
+            BotCommand("analyze", "Analyze one Bitget coin"),
             BotCommand("status", "Scanner health and coverage"),
             BotCommand("settings", "Scanner settings"),
             BotCommand("history", "Delivered signals only"),
@@ -575,12 +674,14 @@ def main():
            .post_init(post_init).post_shutdown(post_shutdown).build())
     for command, handler in (
         ("start", start_cmd), ("help", help_cmd), ("scan", scan_cmd),
+        ("analyze", analyze_cmd),
         ("status", status_cmd), ("settings", settings_cmd), ("history", history_cmd),
     ):
         app.add_handler(CommandHandler(command, handler))
     app.add_handler(CallbackQueryHandler(
-        menu_callback, pattern=r"^menu:(scan|status|history|settings|help|refresh)$"
+        menu_callback, pattern=r"^menu:(scan|analyze|status|history|settings|help|refresh)$"
     ))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, analyze_coin_text))
     log.info("A&T TrendHive Crypto Sniper — signals only, no order placement")
     app.run_polling(drop_pending_updates=True)
 
