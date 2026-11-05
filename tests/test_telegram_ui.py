@@ -51,7 +51,8 @@ def module(monkeypatch):
     monkeypatch.setenv("TELEGRAM_TOKEN", "1234:CI_DUMMY_NOT_REAL")
     monkeypatch.setenv("ADMIN_ID", "1234")
     app = importlib.import_module("main")
-    monkeypatch.setattr(app, "settings", SimpleNamespace(admin_id=1234))
+    from config import load_settings
+    monkeypatch.setattr(app, "settings", load_settings())
     return app
 
 
