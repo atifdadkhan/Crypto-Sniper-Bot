@@ -22,3 +22,5 @@ jobs:
         run: pip install -r requirements.txt
       - name: Validate public Bitget markets, completed candles and live quotes
         run: python -m scripts.live_market_smoke
+      - name: Report sanitized data-quality reasons for repeated scanner skips
+        run: python -m scripts.skipped_symbol_probe
