@@ -25,6 +25,7 @@ from relative_strength import evaluate_relative_strength, precheck_recent_breako
 from slow_momentum import evaluate_slow_momentum, precheck_slow_momentum
 from formatting import signal_text, help_text
 from delivery import AlertOutbox
+from scan_diagnostics import safe_failure_reason
 from utils import load_json, atomic_json, cooldown_active
 
 logging.basicConfig(
@@ -349,7 +350,8 @@ async def _scan_one(symbol, sem, btc, eth, core_enabled=True, four_hour_enabled=
                 raise
             except Exception as exc:
                 failures["CORE_15M"] = type(exc).__name__
-                log.warning("15m scan skipped %s: %s", symbol, type(exc).__name__)
+                log.warning("15m scan skipped %s: %s (reason=%s)", symbol,
+                            type(exc).__name__, safe_failure_reason(exc))
 
             if four_hour_enabled and settings.rs_engine_enabled:
                 async def rs_attempt():
@@ -386,7 +388,8 @@ async def _scan_one(symbol, sem, btc, eth, core_enabled=True, four_hour_enabled=
                     raise
                 except Exception as exc:
                     failures["RS_4H"] = type(exc).__name__
-                    log.warning("4H RS scan skipped %s: %s", symbol, type(exc).__name__)
+                    log.warning("4H RS scan skipped %s: %s (reason=%s)", symbol,
+                                type(exc).__name__, safe_failure_reason(exc))
             return symbol, [signal for signal in (core, rs) if signal is not None], failures
 
         return await scan()
