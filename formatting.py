@@ -12,7 +12,7 @@ def price(value):
 
 
 def signal_text(signal, risk_percent=None, max_notional=None):
-    """Accurate levels for each engine. 4H has ONE 3R target, not TP1/TP2."""
+    """Mobile-first, at most ten lines. Keep exactly the strategy's levels."""
     kind = getattr(signal, "strategy_id", "CORE_15M")
     side = "🟢 LONG" if signal.side == "LONG" else "🔴 SHORT"
     symbol = escape(str(signal.symbol))
@@ -25,38 +25,29 @@ def signal_text(signal, risk_percent=None, max_notional=None):
     else:
         strategy = ("15m Trend Pullback" if signal.setup == "Pullback"
                     else "15m Breakout Retest")
-        strength = "Strong" if signal.score >= 9 else "Good"
-        quality = f"⭐ {strength} setup · {signal.score}/10 (not win probability)"
+        quality = (f"⭐ {'Strong' if signal.score >= 9 else 'Good'} · "
+                   f"{signal.score}/10 (setup quality, not win probability)")
 
     lines = [
         f"🎯 <b>A&amp;T TRENDHIVE | {side}</b>",
-        f"<b>{symbol}</b>",
-        "━━━━━━━━━━━━━━━━━",
-        f"🧠 <b>{escape(strategy)}</b>",
+        f"<b>{symbol}</b> · {escape(strategy)}",
         quality,
-        "",
-        "<b>TRADE LEVELS</b>",
-        f"Entry: <code>{price(signal.entry)}</code>",
-        f"Stop Loss: <code>{price(signal.stop_loss)}</code>",
+        f"🎯 Entry: <code>{price(signal.entry)}</code>",
+        f"🛑 Stop Loss: <code>{price(signal.stop_loss)}</code>",
     ]
     if kind in ("RS_4H", "SLOW_4H"):
-        lines.append(f"Target (3R): <code>{price(signal.tp2)}</code>")
-        if kind == "RS_4H":
-            lines.append("⏳ Review after 5 days; no automatic exit.")
-        else:
-            lines.append("⏳ Review after 10 days; no automatic exit.")
+        lines.append(f"🏆 Target (3R): <code>{price(signal.tp2)}</code>")
+        lines.append("⏳ Review after 5 days; no automatic exit." if kind == "RS_4H"
+                     else "⏳ Review after 10 days; no automatic exit.")
     else:
         lines.extend([
-            f"TP1: <code>{price(signal.tp1)}</code>",
-            f"TP2: <code>{price(signal.tp2)}</code>",
+            f"✅ TP1: <code>{price(signal.tp1)}</code>",
+            f"🏆 TP2: <code>{price(signal.tp2)}</code>",
         ])
     if getattr(signal, "counter_macro", False):
-        lines.append("⚠️ Counter-macro setup: higher risk.")
-    lines.extend([
-        "",
-        "⚠️ Skip if the current price has moved away from Entry.",
-        "<i>Signals only · Trade manually · Profit not guaranteed.</i>",
-    ])
+        lines.append("⚠️ Counter-macro: higher risk.")
+    lines.append("⚠️ Skip if current price moved away from Entry.")
+    lines.append("<i>Manual signal only · Profit not guaranteed.</i>")
     return "\n".join(lines)
 
 
