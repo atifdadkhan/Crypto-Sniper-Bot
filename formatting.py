@@ -29,7 +29,7 @@ def signal_text(signal, risk_percent=None, max_notional=None):
                    f"{signal.score}/10 (setup quality, not win probability)")
 
     lines = [
-        f"🎯 <b>A&amp;T TRENDHIVE | {side}</b>",
+        f"🚨 <b>NEW SIGNAL | {side}</b>",
         f"<b>{symbol}</b> · {escape(strategy)}",
         quality,
         f"🎯 Entry: <code>{price(signal.entry)}</code>",
