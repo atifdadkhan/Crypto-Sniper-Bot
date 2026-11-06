@@ -20,3 +20,14 @@ GitHub Actions automatically chains validation jobs on push/PR. GitHub Actions d
 
 ## Progress log
 2026-11-06: Existing PR merged. PSX Render latest live SHA 457b70dfbf763f6fa566cced45567636dc5f391f; Crypto latest commit a6fa1fef201957cb2af7900f7b1c36d663319a43 had manual Render deployment initiated and is awaiting verification. Hourly ChatGPT Sniper production watch is enabled.
+
+## Mandatory end-to-end execution policy
+1. Audit existing code, deployment, test evidence, and gaps before making changes.
+2. Write a complete, ordered acceptance checklist for each feature and preserve evidence.
+3. Implement all approved related changes in a coordinated development branch; test before merging.
+4. Chain jobs: syntax -> unit/synthetic -> integration -> security/secret safety -> production readiness. On failure, fail the workflow and retain logs; never claim success.
+5. Render auto-deploys main after verified merge. Verify the exact deployed SHA and HTTP health. A healthy endpoint alone does not prove live signal delivery.
+6. On user "Check" requests, inspect CI, failures/logs, latest SHA, Render deploy and health; safely fix actionable issues and rerun checks. Hourly ChatGPT monitoring is supplementary.
+7. GitHub Actions does not write arbitrary bug fixes or implement features on its own. Such work needs a coding agent/session with appropriate access; no claim of continuous second-by-second development.
+8. Never silently replace established strategies, auto-trade, or claim guaranteed profits.
+9. A project is COMPLETE only after all acceptance criteria pass and the latest tested SHA is live and verified.
