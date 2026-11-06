@@ -871,6 +871,15 @@ async def post_shutdown(application: Application):
     await client.close()
 
 
+async def telegram_error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Log Telegram polling/update errors without exposing credentials."""
+    error = context.error
+    if isinstance(error, Exception):
+        log.warning("Telegram update/polling error (%s); library will retry transient network failures", type(error).__name__)
+    else:
+        log.warning("Telegram update/polling error (unknown type)")
+
+
 def main():
     threading.Thread(target=run_health_server, daemon=True, name="health-server").start()
     app = (Application.builder().token(settings.telegram_token)
@@ -886,6 +895,7 @@ def main():
         menu_callback, pattern=r"^menu:(scan|analyze|status|history|settings|help|refresh|home)$"
     ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, analyze_coin_text))
+    app.add_error_handler(telegram_error_handler)
     log.info("A&T TrendHive Crypto Sniper — signals only, no order placement")
     app.run_polling(drop_pending_updates=True)
 
