@@ -617,10 +617,15 @@ async def run_coin_analysis(symbol):
     """Manual read-only dual-engine evaluation, never an alert or automatic order."""
     if coin_analysis_lock.locked():
         return "⏳ Another coin analysis is running. Try again shortly."
-    # Keep automated scans the priority on the free Render instance.
-    if scan_lock.locked():
-        return "⏳ Market scan in progress. Try /analyze again after it completes."
+    # Queue one analysis instead of forcing the user to resend after each scan.
     async with coin_analysis_lock:
+        if scan_lock.locked():
+            try:
+                await asyncio.wait_for(scan_lock.acquire(), timeout=120)
+            except asyncio.TimeoutError:
+                return "⏳ Market scan is busy. Please try again shortly."
+            else:
+                scan_lock.release()
         if not client.markets:
             await asyncio.wait_for(client.initialize(), timeout=60)
         # Full liquidity ranking is point-in-time, matching live scanner eligibility.
@@ -685,18 +690,13 @@ async def _reply_coin_analysis(message, raw_symbol, application):
             "⚠️ Invalid coin. Use /analyze BTC or /analyze SOL.",
             reply_markup=MAIN_MENU,
         )
-    if scan_lock.locked():
-        return await message.reply_text(
-            "⏳ Market scan in progress; try analysis after it finishes.",
-            reply_markup=MAIN_MENU,
-        )
     if manual_coin_task is not None and not manual_coin_task.done():
         return await message.reply_text(
             "⏳ Another coin analysis is running; try again shortly.",
             reply_markup=MAIN_MENU,
         )
     progress = await message.reply_text(
-        f"🔎 Analyzing {escape(symbol)}… Menu is still responsive."
+        f"🔎 {escape(symbol)}: Analysis queued…" if scan_lock.locked() else f"🔎 Analyzing {escape(symbol)}…"
     )
     manual_coin_task = application.create_task(
         _background_coin_analysis(progress, symbol),
