@@ -4,6 +4,7 @@ import math
 
 from indicators import enrich, trend
 from macro_policy import direction_policy
+from candle_intelligence import candle_patterns
 
 
 @dataclass
@@ -192,6 +193,9 @@ def evaluate(symbol, candles, btc_trend, eth_trend, min_score=7, current_price=N
             candidate.counter_macro = True
             candidate.reasons.append("Strong independent 4H trend despite BTC/ETH opposition")
         candidate.symbol = symbol
+        patterns = candle_patterns(candles['15m'])
+        aligned = ('Bullish Engulfing', 'Bullish Rejection') if side == 'LONG' else ('Bearish Engulfing', 'Bearish Rejection')
+        candidate.reasons.extend(p for p in patterns if p in aligned)
         try:
             candidate.candle_close_ms = int(float(candles["15m"].timestamp.iloc[-1])) + 900_000
         except (TypeError, ValueError, AttributeError):
