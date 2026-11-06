@@ -1,0 +1,41 @@
+name: Sniper production readiness
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: sniper-readiness-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m compileall -q .
+  synthetic-patterns:
+    needs: syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install pytest pandas numpy
+      - run: python -m pytest -q tests/test_candle_intelligence.py
+  readiness:
+    needs: [syntax, synthetic-patterns]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Readiness report
+        run: |
+          echo "Code and synthetic candle checks passed."
+          echo "No historical market data downloaded."
+          echo "Live multi-engine integration and Render health must be verified separately."
