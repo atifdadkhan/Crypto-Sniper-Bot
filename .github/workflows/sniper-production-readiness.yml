@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m pip install pytest pandas numpy
-      - run: python -m pytest -q tests/test_candle_intelligence.py tests/test_independent_engines.py
+      - run: python -m pytest -q tests/test_candle_intelligence.py tests/test_independent_engines.py tests/test_opportunity_ledger.py tests/test_independent_entries.py
   readiness:
     needs: [syntax, synthetic-patterns]
     runs-on: ubuntu-latest
