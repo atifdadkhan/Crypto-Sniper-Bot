@@ -23,6 +23,9 @@ from telegram.ext import Application, CallbackQueryHandler, CommandHandler, Cont
 from config import load_settings
 from exchange import MarketData, macro_snapshot
 from strategy import evaluate
+from independent_engines import evaluate_engines
+from indicators import enrich
+from opportunity_ledger import observe, summary as watch_summary
 from relative_strength import evaluate_relative_strength, precheck_recent_breakout
 from slow_momentum import evaluate_slow_momentum, precheck_slow_momentum
 from formatting import signal_text, help_text
@@ -51,6 +54,10 @@ state.setdefault("scan_cursor", 0)
 state.setdefault("last_scan", None)
 state.setdefault("last_error", None)
 state.setdefault("last_scan_result", {})
+if not isinstance(state.get("watch_book"), dict):
+    state["watch_book"] = {}
+if not isinstance(state.get("watch_outcomes"), list):
+    state["watch_outcomes"] = []
 history = load_json(HISTORY_FILE, [])
 if not isinstance(history, list):
     history = []
@@ -413,7 +420,26 @@ def scan_assignments(core_batch, four_hour_watch):
     return jobs
 
 
-async def _scan_one(symbol, sem, btc, eth, core_enabled=True, four_hour_enabled=True):
+def _audit_crypto_watch(symbol, frame, should_watch=False, reason="Developing setup"):
+    """Track next four completed candles for a rejected/watch opportunity."""
+    if frame is None or len(frame) < 100:
+        return
+    try:
+        last = enrich(frame).iloc[-1]
+        bars = [
+            (int(row.timestamp), float(row.high), float(row.low), float(row.close))
+            for row in frame.tail(16).itertuples(index=False)
+        ]
+        # Use the same causal closed-bar feature calculations as the trade engine.
+        side = "LONG" if float(last.close) >= float(last.ema21) else "SHORT"
+        observe(state["watch_book"], state["watch_outcomes"],
+                symbol, side, bars, should_watch=should_watch,
+                reason=reason, atr=float(last.atr))
+    except (ValueError, TypeError, KeyError, AttributeError):
+        log.debug("WATCH evidence not available for %s", symbol)
+
+
+async def _scan_one(symbol, sem, btc, eth, core_enabled=True, four_hour_enabled=True, track_opportunities=False):
     """Run both engines independently; one timeframe failure cannot veto the other."""
     async with sem:
         async def scan():
@@ -425,12 +451,23 @@ async def _scan_one(symbol, sem, btc, eth, core_enabled=True, four_hour_enabled=
                 candles = await client.multi_timeframe(symbol, asyncio.Semaphore(1))
                 recent_4h = candles["4h"]
                 live = await client.live_price(symbol)
-                # Original 15m engine: exact same strategy and input arguments.
-                return evaluate(
+                candidate = evaluate(
                     symbol, candles, btc["trend"], eth["trend"], settings.min_score,
                     current_price=live, btc_return_6_pct=btc["return_6_pct"],
                     eth_return_6_pct=eth["return_6_pct"],
                 )
+                if track_opportunities:
+                    evidence = [
+                        e for direction in ("LONG", "SHORT")
+                        for e in evaluate_engines(candles["15m"], direction)
+                        if e.confirmed
+                    ]
+                    is_watch = candidate is None and bool(evidence)
+                    if is_watch:
+                        failures["WATCH"] = ",".join(sorted({e.engine for e in evidence}))
+                    _audit_crypto_watch(symbol, candles["15m"], is_watch,
+                                        failures.get("WATCH", "No WATCH setup"))
+                return candidate
             try:
                 if core_enabled:
                     core = await asyncio.wait_for(
@@ -490,7 +527,7 @@ async def run_scan(bot=None, chat_id=None):
     if scan_lock.locked():
         return "A market scan is already running."
     async with scan_lock:
-        scanned = skipped = no_setup = delivered = queued = 0
+        scanned = skipped = no_setup = delivered = queued = developing = 0
         core_queued = rs_queued = slow_queued = rs_errors = 0
         tasks = []
         started = time.monotonic()
@@ -504,9 +541,17 @@ async def run_scan(bot=None, chat_id=None):
             n = len(all_symbols)
             cap = settings.scan_batch_size
             if cap > 0 and n > cap:
-                cursor = int(state.get("scan_cursor", 0)) % n
-                symbols = [all_symbols[(cursor + j) % n] for j in range(cap)]
-                state["scan_cursor"] = (cursor + len(symbols)) % n
+                # Always scan the most liquid assets each pass; rotate the
+                # remainder using the existing finite API-request budget.
+                priority = min(settings.four_hour_top_n, max(1, cap // 3))
+                priority = min(priority, n)
+                tail = all_symbols[priority:]
+                width = cap - priority
+                cursor = int(state.get("scan_cursor", 0)) % len(tail)
+                symbols = list(all_symbols[:priority]) + [
+                    tail[(cursor + j) % len(tail)] for j in range(width)
+                ]
+                state["scan_cursor"] = (cursor + width) % len(tail)
             else:
                 symbols = all_symbols
                 state["scan_cursor"] = 0
@@ -530,7 +575,8 @@ async def run_scan(bot=None, chat_id=None):
             tasks = [
                 asyncio.create_task(_scan_one(
                     symbol, sem, btc, eth,
-                    core_enabled=check_core, four_hour_enabled=check_four_hour
+                    core_enabled=check_core, four_hour_enabled=check_four_hour,
+                    track_opportunities=True
                 ))
                 for symbol, check_core, check_four_hour in assignments
             ]
@@ -544,8 +590,10 @@ async def run_scan(bot=None, chat_id=None):
                     skipped += 1
                 if failures.get("RS_4H"):
                     rs_errors += 1
+                if failures.get("WATCH"):
+                    developing += 1
                 if not signals:
-                    if not failures:
+                    if not failures.get("CORE_15M") and not failures.get("RS_4H"):
                         no_setup += 1
                     continue
                 # Each strategy gets its own symbol+side cooldown and candle
@@ -574,7 +622,8 @@ async def run_scan(bot=None, chat_id=None):
             state["last_error"] = None if scanned > skipped else "All sampled markets failed data checks"
             last_scan_result = {
                 "symbols": scanned, "signals": delivered, "skipped": skipped,
-                "no_setup": no_setup, "universe": n, "scan_batch": len(symbols),
+                "no_setup": no_setup, "developing": developing,
+                "universe": n, "scan_batch": len(symbols),
                 "delivery_pending": len(outbox.items),
                 "core15m_queued": core_queued, "rs4h_queued": rs_queued,
                 "slow4h_queued": slow_queued, "rs4h_errors": rs_errors,
