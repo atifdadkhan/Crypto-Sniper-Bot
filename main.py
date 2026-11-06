@@ -68,6 +68,7 @@ coin_analysis_lock = asyncio.Lock()
 delivery_lock = asyncio.Lock()
 client = MarketData(settings.exchange_timeout_ms, settings.request_rate_limit)
 last_scan_result = {"symbols": 0, "signals": 0, "skipped": 0, "no_setup": 0,
+                    "developing": 0,
                     "universe": 0, "scan_batch": 0, "delivery_pending": len(outbox.items),
                     "core15m_queued": 0, "rs4h_queued": 0, "rs4h_errors": 0,
                     "slow4h_queued": 0,
@@ -150,6 +151,7 @@ def _save_history():
 
 def _scan_summary():
     result = last_scan_result
+    research = watch_summary(state["watch_book"], state["watch_outcomes"])
     return (
         "📊 <b>MARKET STATUS</b>\n"
         "━━━━━━━━━━━━━━━━━\n"
@@ -165,7 +167,8 @@ def _scan_summary():
         f"{result.get('slow4h_queued', 0)}\n"
         f"⚠️ 15m data skips: {result['skipped']}\n"
         f"⚠️ 4H data skips: {result.get('rs4h_errors', 0)}\n"
-        f"⏸ No setup: {result['no_setup']}\n"
+        f"⏸ No setup: {result['no_setup']} | 👀 WATCH: {result.get('developing', 0)}\n"
+        f"📈 WATCH follow-through (1 ATR): {research['favorable_1atr']}/{research['measured']} (not PnL)\n"
         f"📊 Opportunity Report: {result['signals']} delivered | {result['no_setup']} without setup | {result['skipped']} data skips\n"
         f"Last error: {escape(str(state.get('last_error') or 'None'))}\n\n"
         "<i>Manual signals only. Zero alerts can be normal.</i>"
@@ -816,7 +819,8 @@ async def scheduled_opportunity_report(context: ContextTypes.DEFAULT_TYPE):
             "📊 <b>CRYPTO OPPORTUNITY REPORT</b>\n"
             f"Scanned: {r['symbols']} / {r['universe']}\n"
             f"Alerts delivered: {r['signals']} | Pending: {len(outbox.items)}\n"
-            f"No setup: {r['no_setup']} | Data errors: {r['skipped']}\n"
+            f"No setup: {r['no_setup']} | Developing: {r.get('developing', 0)}\n"
+            f"Data errors: {r['skipped']} | Follow-through stats in Market Status\n"
             "Tap Market Status for details."
         )
         await context.bot.send_message(
