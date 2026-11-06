@@ -155,6 +155,70 @@ def _candidate(row, side, live_price):
     )
 
 
+def _independent_candidate(row, side, live_price, evidence):
+    """Independent closed-candle entry when the legacy pullback/retest misses.
+
+    A volume-only candle is NEVER an entry; the asset still needs a verified
+    sweep, breakout, or continuation, directional structure, a fresh quote,
+    controlled extension and an ATR-bounded stop.
+    """
+    names = {e.engine for e in evidence if e.confirmed}
+    triggers = names & {"Liquidity Sweep", "Breakout", "Trend Continuation"}
+    if not triggers:
+        return None
+    try:
+        live = float(live_price)
+        close, atr = float(row.close), float(row.atr)
+        adx, vol = float(row.adx), float(row.vol_ratio)
+        width, body = float(row.range), float(row.body_atr)
+        efficiency = float(row.efficiency)
+        rsi = float(row.rsi)
+        extension = float(row.ema21_extension)
+        ema9, ema21, ema50 = float(row.ema9), float(row.ema21), float(row.ema50)
+    except (ValueError, TypeError, AttributeError):
+        return None
+    if not _valid(live, close, atr):
+        return None
+    # A modestly wider entry zone than the legacy strategy, not a chase.
+    if abs(live - close) > 0.32 * atr:
+        return None
+    if not (12 <= adx <= 50 and 0.85 <= vol <= 5.0
+            and 0.15 <= body and width <= 1.55 * atr and efficiency >= 0.10):
+        return None
+    if "Liquidity Sweep" in triggers and len(triggers) == 1 and vol < 1.25:
+        return None
+    is_long = side == "LONG"
+    if is_long:
+        if not (close > ema9 and ema21 > ema50 and live > ema9
+                and 45 <= rsi <= 75 and extension <= 1.20):
+            return None
+        stop = min(float(row.recent_swing_low) - 0.12 * atr, live - 0.85 * atr)
+    else:
+        if not (close < ema9 and ema21 < ema50 and live < ema9
+                and 25 <= rsi <= 55 and extension >= -1.20):
+            return None
+        stop = max(float(row.recent_swing_high) + 0.12 * atr, live + 0.85 * atr)
+    risk = abs(live - stop)
+    if not math.isfinite(risk) or not (0.65 * atr <= risk <= 2.2 * atr):
+        return None
+    if (is_long and stop >= live) or (not is_long and stop <= live):
+        return None
+    score = min(10, 6 + int(adx >= 18) + int(vol >= 1.5) +
+                int(len(triggers) >= 2) + int(efficiency >= 0.22))
+    setup = ("Breakout" if "Breakout" in triggers else
+             "Liquidity Sweep" if "Liquidity Sweep" in triggers else
+             "Trend Continuation")
+    return Signal(
+        symbol="", side=side, entry=live, stop_loss=stop,
+        tp1=live + (1.5 * risk if is_long else -1.5 * risk),
+        tp2=live + (2.5 * risk if is_long else -2.5 * risk),
+        score=score, reasons=[f"{e.engine}: {e.reason}" for e in evidence
+                              if e.confirmed],
+        timestamp=datetime.now(timezone.utc).isoformat(), atr=atr,
+        risk_distance_pct=risk / live * 100, setup=setup,
+    )
+
+
 def evaluate(symbol, candles, btc_trend, eth_trend, min_score=7, current_price=None,
              btc_return_6_pct=None, eth_return_6_pct=None):
     """Multi-timeframe quantitative setup with anti-chase and structure filters."""
@@ -176,9 +240,26 @@ def evaluate(symbol, candles, btc_trend, eth_trend, min_score=7, current_price=N
     for side in ("LONG", "SHORT"):
         wanted = "BULLISH" if side == "LONG" else "BEARISH"
         opposite = "BEARISH" if side == "LONG" else "BULLISH"
-        if trend(h1) != wanted or trend(h4) != wanted or trend(d1) == opposite:
+        engine_evidence = evaluate_engines(candles["15m"], side)
+        strong_15m = sum(
+            e.confirmed for e in engine_evidence
+            if e.engine in ("Liquidity Sweep", "Breakout", "Trend Continuation")
+        ) >= 2
+        h1_direction = trend(h1)
+        h4_direction = trend(h4)
+        # 4H alignment stays mandatory. A neutral 1H may be overruled by
+        # two independently confirmed closed-candle engines and 4H strength.
+        if (h4_direction != wanted or trend(d1) == opposite or
+                (h1_direction != wanted and not (
+                    h1_direction == "NEUTRAL" and strong_15m and
+                    float(h4.adx) >= 18
+                ))):
             continue
         candidate = _candidate(fast, side, current_price)
+        if candidate is None:
+            candidate = _independent_candidate(
+                fast, side, current_price, engine_evidence
+            )
         if candidate is None:
             continue
         if btc_trend == wanted and eth_trend == wanted:
@@ -197,9 +278,14 @@ def evaluate(symbol, candles, btc_trend, eth_trend, min_score=7, current_price=N
         patterns = candle_patterns(candles['15m'])
         aligned = ('Bullish Engulfing', 'Bullish Rejection') if side == 'LONG' else ('Bearish Engulfing', 'Bearish Rejection')
         candidate.reasons.extend(p for p in patterns if p in aligned)
-        # Independent engines provide confluence evidence, not untested entry triggers.
-        engine_evidence = evaluate_engines(candles['15m'], side)
-        candidate.reasons.extend(f'{e.engine}: {e.reason}' for e in engine_evidence if e.confirmed)
+        # Independent triggers can create an entry; explanatory evidence is
+        # appended to the legacy candidate only, avoiding duplicate reasons.
+        if candidate.setup in ("Pullback", "Breakout retest"):
+            candidate.reasons.extend(
+                f"{e.engine}: {e.reason}" for e in engine_evidence if e.confirmed
+            )
+        if h1_direction != wanted:
+            candidate.reasons.append("1H neutral; strong 4H + 15m exception")
         try:
             candidate.candle_close_ms = int(float(candles["15m"].timestamp.iloc[-1])) + 900_000
         except (TypeError, ValueError, AttributeError):
