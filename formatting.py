@@ -23,8 +23,13 @@ def signal_text(signal, risk_percent=None, max_notional=None):
         strategy = "4H Slow Momentum Breakout"
         quality = "🧪 Experimental · Unscored"
     else:
-        strategy = ("15m Trend Pullback" if signal.setup == "Pullback"
-                    else "15m Breakout Retest")
+        strategy = {
+            "Pullback": "15m Trend Pullback",
+            "Breakout retest": "15m Breakout Retest",
+            "Breakout": "15m Confirmed Breakout",
+            "Liquidity Sweep": "15m Liquidity Sweep",
+            "Trend Continuation": "15m Trend Continuation",
+        }.get(signal.setup, "15m Confirmed Setup")
         quality = (f"⭐ {'Strong' if signal.score >= 9 else 'Good'} · "
                    f"{signal.score}/10 (setup quality, not win probability)")
 
@@ -44,6 +49,18 @@ def signal_text(signal, risk_percent=None, max_notional=None):
             f"✅ TP1: <code>{price(signal.tp1)}</code>",
             f"🏆 TP2: <code>{price(signal.tp2)}</code>",
         ])
+    if kind == "CORE_15M":
+        for label, raw in (
+            ("📈 Trends", getattr(signal, "htf_trends", "")),
+            ("🌐 Macro", getattr(signal, "macro_trends", "")),
+        ):
+            if raw:
+                safe = escape(str(raw))
+                safe = (safe.replace("BULLISH", "🟢")
+                            .replace("BEARISH", "🔴")
+                            .replace("NEUTRAL", "⚪")
+                            .replace("UNKNOWN", "⚪"))
+                lines.append(f"{label}: {safe}")
     if getattr(signal, "counter_macro", False):
         lines.append("⚠️ Counter-macro: higher risk.")
     lines.append("⚠️ Skip if current price moved away from Entry.")
