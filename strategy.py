@@ -5,6 +5,7 @@ import math
 from indicators import enrich, trend
 from macro_policy import direction_policy
 from candle_intelligence import candle_patterns
+from independent_engines import evaluate_engines
 
 
 @dataclass
@@ -196,6 +197,9 @@ def evaluate(symbol, candles, btc_trend, eth_trend, min_score=7, current_price=N
         patterns = candle_patterns(candles['15m'])
         aligned = ('Bullish Engulfing', 'Bullish Rejection') if side == 'LONG' else ('Bearish Engulfing', 'Bearish Rejection')
         candidate.reasons.extend(p for p in patterns if p in aligned)
+        # Independent engines provide confluence evidence, not untested entry triggers.
+        engine_evidence = evaluate_engines(candles['15m'], side)
+        candidate.reasons.extend(f'{e.engine}: {e.reason}' for e in engine_evidence if e.confirmed)
         try:
             candidate.candle_close_ms = int(float(candles["15m"].timestamp.iloc[-1])) + 900_000
         except (TypeError, ValueError, AttributeError):
