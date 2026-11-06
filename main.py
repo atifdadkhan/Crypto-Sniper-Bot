@@ -159,6 +159,7 @@ def _scan_summary():
         f"⚠️ 15m data skips: {result['skipped']}\n"
         f"⚠️ 4H data skips: {result.get('rs4h_errors', 0)}\n"
         f"⏸ No setup: {result['no_setup']}\n"
+        f"📊 Opportunity Report: {result['signals']} delivered | {result['no_setup']} without setup | {result['skipped']} data skips\n"
         f"Last error: {escape(str(state.get('last_error') or 'None'))}\n\n"
         "<i>Manual signals only. Zero alerts can be normal.</i>"
     )
