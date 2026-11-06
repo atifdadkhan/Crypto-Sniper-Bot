@@ -41,8 +41,13 @@ def signal_is_current(signal, core_ttl_seconds, now=None):
 def _signal_section(signal, core=False):
     engine_id = getattr(signal, "strategy_id", "CORE_15M")
     if core:
-        engine = ("15m Trend Pullback" if getattr(signal, "setup", "") == "Pullback"
-                  else "15m Breakout Retest")
+        engine = {
+            "Pullback": "15m Trend Pullback",
+            "Breakout retest": "15m Breakout Retest",
+            "Breakout": "15m Confirmed Breakout",
+            "Liquidity Sweep": "15m Liquidity Sweep",
+            "Trend Continuation": "15m Trend Continuation",
+        }.get(getattr(signal, "setup", ""), "15m Confirmed Setup")
     else:
         engine = ("4H Relative Strength Breakout" if engine_id == "RS_4H"
                   else "4H Slow Momentum Breakout")
