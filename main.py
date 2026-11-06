@@ -545,7 +545,8 @@ async def run_scan(bot=None, chat_id=None):
                 if failures.get("RS_4H"):
                     rs_errors += 1
                 if not signals:
-                    no_setup += 1
+                    if not failures:
+                        no_setup += 1
                     continue
                 # Each strategy gets its own symbol+side cooldown and candle
                 # outbox ID, so a 4H signal cannot suppress a valid 15m alert.
@@ -752,6 +753,32 @@ async def scheduled_scan(context: ContextTypes.DEFAULT_TYPE):
     log.info("Scheduled scan: %s", result)
 
 
+async def scheduled_opportunity_report(context: ContextTypes.DEFAULT_TYPE):
+    """At most one brief report per 4 hours; skip stale or missing scans."""
+    try:
+        stamp = float(state.get("last_scan_epoch") or 0)
+        age = time.time() - stamp
+        if stamp <= 0 or age < 0 or age > max(3600, settings.scan_seconds * 2):
+            return
+        r = last_scan_result
+        if not r.get("symbols"):
+            return
+        message = (
+            "📊 <b>CRYPTO OPPORTUNITY REPORT</b>\n"
+            f"Scanned: {r['symbols']} / {r['universe']}\n"
+            f"Alerts delivered: {r['signals']} | Pending: {len(outbox.items)}\n"
+            f"No setup: {r['no_setup']} | Data errors: {r['skipped']}\n"
+            "Tap Market Status for details."
+        )
+        await context.bot.send_message(
+            chat_id=settings.admin_id, text=message, parse_mode=ParseMode.HTML
+        )
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        log.warning("Opportunity report unavailable: %s", type(exc).__name__)
+
+
 async def post_init(application: Application):
     try:
         await application.bot.set_my_commands([
@@ -779,6 +806,10 @@ async def post_init(application: Application):
         application.job_queue.run_once(scheduled_scan, when=30, name="startup_scan")
         application.job_queue.run_repeating(retry_pending, interval=60,
                                             first=60, name="retry_telegram_alerts")
+        application.job_queue.run_repeating(
+            scheduled_opportunity_report, interval=14400, first=14400,
+            name="crypto_opportunity_report"
+        )
     else:
         log.error("JobQueue unavailable; scheduled scans are disabled.")
 
