@@ -18,6 +18,21 @@ class MarketData:
             "options": {"defaultType": "swap"},
         })
         self.markets = {}
+        # Cap simultaneous public requests across all market scans.
+        self._request_gate = asyncio.Semaphore(3)
+
+    async def _fetch_bars(self, symbol, timeframe, limit, since=None):
+        for attempt in range(3):
+            try:
+                async with self._request_gate:
+                    return await self.exchange.fetch_ohlcv(
+                        symbol, timeframe=timeframe, since=since, limit=limit
+                    )
+            except (ccxt.RateLimitExceeded, ccxt.DDoSProtection,
+                    ccxt.RequestTimeout, ccxt.ExchangeNotAvailable):
+                if attempt == 2:
+                    raise
+                await asyncio.sleep(1.5 * (attempt + 1))
 
     async def initialize(self):
         self.markets = await self.exchange.load_markets()
@@ -56,7 +71,7 @@ class MarketData:
         return [s for s, _ in ranked] if top_n == 0 else [s for s, _ in ranked[:top_n]]
 
     async def candles(self, symbol, timeframe, limit=140):
-        raw = await self.exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
+        raw = await self._fetch_bars(symbol, timeframe, limit)
         interval = TIMEFRAMES[timeframe]
         if raw and len(raw) < 101:
             # Bitget may cap a daily request to 100 rows and historical
@@ -64,9 +79,9 @@ class MarketData:
             # never invent the missing 100th closed candle.
             try:
                 first_open = min(int(row[0]) for row in raw)
-                older = await self.exchange.fetch_ohlcv(
-                    symbol, timeframe=timeframe,
-                    since=first_open - min(75 * 86_400_000, 100 * interval), limit=100,
+                older = await self._fetch_bars(
+                    symbol, timeframe, 100,
+                    since=first_open - min(75 * 86_400_000, 100 * interval),
                 )
                 raw = sorted({int(row[0]): row for row in [*(older or []), *raw]}.values(),
                              key=lambda row: int(row[0]))
@@ -137,9 +152,7 @@ class MarketData:
                 break
             first = min(rows)
             requested_since = first - 90 * interval
-            older = await self.exchange.fetch_ohlcv(
-                symbol, timeframe="4h", since=requested_since, limit=100
-            )
+            older = await self._fetch_bars(symbol, "4h", 100, since=requested_since)
             if not older:
                 break
             for bar in older:
