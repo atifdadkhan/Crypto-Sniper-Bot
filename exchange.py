@@ -20,6 +20,7 @@ class MarketData:
         self.markets = {}
         # Cap simultaneous public requests across all market scans.
         self._request_gate = asyncio.Semaphore(3)
+        self._rank_cache = (0.0, None, [])
 
     async def _fetch_bars(self, symbol, timeframe, limit, since=None):
         for attempt in range(3):
@@ -34,20 +35,36 @@ class MarketData:
                     raise
                 await asyncio.sleep(1.5 * (attempt + 1))
 
+    async def _fetch_tickers(self, symbols):
+        for attempt in range(3):
+            try:
+                async with self._request_gate:
+                    return await self.exchange.fetch_tickers(symbols)
+            except (ccxt.RateLimitExceeded, ccxt.DDoSProtection,
+                    ccxt.RequestTimeout, ccxt.ExchangeNotAvailable):
+                if attempt == 2:
+                    raise
+                await asyncio.sleep(1.5 * (attempt + 1))
+
     async def initialize(self):
         self.markets = await self.exchange.load_markets()
+        self._rank_cache = (0.0, None, [])
 
     async def close(self):
         await self.exchange.close()
 
     async def top_symbols(self, top_n=20, min_quote_volume=500000):
+        key = (top_n, min_quote_volume)
+        expiry, cached_key, cached_symbols = self._rank_cache
+        if cached_key == key and time.monotonic() < expiry:
+            return list(cached_symbols)
         symbols = [s for s, m in self.markets.items()
                    if m.get("active") is not False and m.get("swap") and m.get("linear")
                    and m.get("quote") == "USDT" and m.get("settle") in (None, "USDT")
                    and not is_excluded_non_crypto_base(m.get("base"), market=m)]
         if not symbols:
             return []
-        tickers = await self.exchange.fetch_tickers(symbols)
+        tickers = await self._fetch_tickers(symbols)
         ranked = []
         for symbol, ticker in tickers.items():
             last = ticker.get("last")
@@ -68,7 +85,9 @@ class MarketData:
         ranked.sort(key=lambda item: item[1], reverse=True)
         # TOP_N=0 means scan every active USDT linear perpetual market that
         # passes the liquidity floor; otherwise scan the top N dynamically.
-        return [s for s, _ in ranked] if top_n == 0 else [s for s, _ in ranked[:top_n]]
+        result = [s for s, _ in ranked] if top_n == 0 else [s for s, _ in ranked[:top_n]]
+        self._rank_cache = (time.monotonic() + 120, key, list(result))
+        return result
 
     async def candles(self, symbol, timeframe, limit=140):
         raw = await self._fetch_bars(symbol, timeframe, limit)
