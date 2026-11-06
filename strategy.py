@@ -24,6 +24,8 @@ class Signal:
     setup: str
     counter_macro: bool = False
     candle_close_ms: int = 0
+    htf_trends: str = ""
+    macro_trends: str = ""
 
     def to_dict(self):
         return asdict(self)
@@ -275,6 +277,11 @@ def evaluate(symbol, candles, btc_trend, eth_trend, min_score=7, current_price=N
             candidate.counter_macro = True
             candidate.reasons.append("Strong independent 4H trend despite BTC/ETH opposition")
         candidate.symbol = symbol
+        candidate.htf_trends = (
+            f"15m:{trend(fast)} | 1H:{h1_direction} | "
+            f"4H:{h4_direction} | 1D:{trend(d1)}"
+        )
+        candidate.macro_trends = f"BTC:{btc_trend} | ETH:{eth_trend}"
         patterns = candle_patterns(candles['15m'])
         aligned = ('Bullish Engulfing', 'Bullish Rejection') if side == 'LONG' else ('Bearish Engulfing', 'Bearish Rejection')
         candidate.reasons.extend(p for p in patterns if p in aligned)
