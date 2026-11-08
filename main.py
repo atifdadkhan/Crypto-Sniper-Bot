@@ -930,7 +930,7 @@ def main():
     ):
         app.add_handler(CommandHandler(command, handler))
     app.add_handler(CallbackQueryHandler(
-        menu_callback, pattern=r"^menu:(scan|analyze|status|history|settings|help|refresh|home)$"
+        menu_callback, pattern=r"^(?:menu:(?:scan|analyze|status|history|settings|help|refresh|home|strategy)|mode:(?:recommended|breakout|ema|rsi_macd))$"
     ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, analyze_coin_text))
     app.add_error_handler(telegram_error_handler)
