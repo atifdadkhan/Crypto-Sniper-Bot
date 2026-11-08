@@ -224,7 +224,7 @@ def _independent_candidate(row, side, live_price, evidence):
 
 
 def evaluate(symbol, candles, btc_trend, eth_trend, min_score=7, current_price=None,
-             btc_return_6_pct=None, eth_return_6_pct=None, strategy_mode="recommended"):
+             btc_return_6_pct=None, eth_return_6_pct=None, strategy_mode=None):
     """Multi-timeframe quantitative setup with anti-chase and structure filters."""
     required = ("15m", "1h", "4h", "1d")
     if not isinstance(candles, dict) or any(tf not in candles for tf in required):
@@ -280,11 +280,14 @@ def evaluate(symbol, candles, btc_trend, eth_trend, min_score=7, current_price=N
             candidate.reasons.append("Strong independent 4H trend despite BTC/ETH opposition")
         # A selected style must independently confirm this otherwise safe
         # core candidate; do not bypass HTF, quote, macro or anti-chase gates.
-        selected = select_mode(candles["15m"], side, strategy_mode, "crypto")
-        if selected is None:
-            continue
-        candidate.strategy_name = selected[1]
-        candidate.reasons.append("Selected style: " + selected[1])
+        # None retains the original API/backtest behaviour. Live Telegram
+        # scans explicitly pass the user-selected 15m style.
+        if strategy_mode is not None:
+            selected = select_mode(candles["15m"], side, strategy_mode, "crypto")
+            if selected is None:
+                continue
+            candidate.strategy_name = selected[1]
+            candidate.reasons.append("Selected style: " + selected[1])
         candidate.symbol = symbol
         candidate.htf_trends = (
             f"15m:{trend(fast)} | 1H:{h1_direction} | "
