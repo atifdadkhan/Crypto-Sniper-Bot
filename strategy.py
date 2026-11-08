@@ -6,6 +6,7 @@ from indicators import enrich, trend
 from macro_policy import direction_policy
 from candle_intelligence import candle_patterns
 from independent_engines import evaluate_engines
+from strategy_modes import select_mode
 
 
 @dataclass
@@ -26,6 +27,7 @@ class Signal:
     candle_close_ms: int = 0
     htf_trends: str = ""
     macro_trends: str = ""
+    strategy_name: str = ""
 
     def to_dict(self):
         return asdict(self)
@@ -222,7 +224,7 @@ def _independent_candidate(row, side, live_price, evidence):
 
 
 def evaluate(symbol, candles, btc_trend, eth_trend, min_score=7, current_price=None,
-             btc_return_6_pct=None, eth_return_6_pct=None):
+             btc_return_6_pct=None, eth_return_6_pct=None, strategy_mode="recommended"):
     """Multi-timeframe quantitative setup with anti-chase and structure filters."""
     required = ("15m", "1h", "4h", "1d")
     if not isinstance(candles, dict) or any(tf not in candles for tf in required):
@@ -276,6 +278,13 @@ def evaluate(symbol, candles, btc_trend, eth_trend, min_score=7, current_price=N
         if independent:
             candidate.counter_macro = True
             candidate.reasons.append("Strong independent 4H trend despite BTC/ETH opposition")
+        # A selected style must independently confirm this otherwise safe
+        # core candidate; do not bypass HTF, quote, macro or anti-chase gates.
+        selected = select_mode(candles["15m"], side, strategy_mode, "crypto")
+        if selected is None:
+            continue
+        candidate.strategy_name = selected[1]
+        candidate.reasons.append("Selected style: " + selected[1])
         candidate.symbol = symbol
         candidate.htf_trends = (
             f"15m:{trend(fast)} | 1H:{h1_direction} | "
