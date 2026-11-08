@@ -112,12 +112,12 @@ health_app = Flask(__name__)
 def _strategy_text():
     selected = valid_mode(state.get("strategy_mode", "recommended"))
     return (
-        "🎯 <b>CHOOSE SIGNAL STYLE</b>\\n\\n"
-        f"Current: <b>{escape(MODE_LABELS[selected])}</b>\\n\\n"
-        "⭐ Best Match: bot chooses from three checks.\\n"
-        "🚀 Breakout: price breaks a level with strong activity.\\n"
-        "📈 Early Trend: catches a fresh trend change.\\n"
-        "🛡️ Extra Check: waits for two indicators to agree.\\n\\n"
+        "🎯 <b>CHOOSE SIGNAL STYLE</b>\n\n"
+        f"Current: <b>{escape(MODE_LABELS[selected])}</b>\n\n"
+        "⭐ Best Match: bot chooses from three checks.\n"
+        "🚀 Breakout: price breaks a level with strong activity.\n"
+        "📈 Early Trend: catches a fresh trend change.\n"
+        "🛡️ Extra Check: waits for two indicators to agree.\n\n"
         "All choices still need live-price and safety checks. "
         "This affects 15m alerts; experimental 4H alerts are separate. "
         "No choice guarantees profit."
@@ -342,7 +342,7 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return await _panel(query, "⏳ Scan running. Change the style after it finishes.", STRATEGY_MENU)
         state["strategy_mode"] = requested
         _save_state()
-        return await _panel(query, "✅ Style updated.\\n\\n" + _strategy_text(), STRATEGY_MENU)
+        return await _panel(query, "✅ Style updated.\n\n" + _strategy_text(), STRATEGY_MENU)
     action = (query.data or "").partition(":")[2]
     if action != "analyze":
         context.user_data.pop("awaiting_coin", None)
@@ -724,7 +724,7 @@ async def run_coin_analysis(symbol):
             timeout=120,
         )
         if symbol not in all_symbols:
-            return ("⏸ <b>WAIT — not eligible</b>\\n"
+            return ("⏸ <b>WAIT — not eligible</b>\n"
                     f"{escape(symbol)} is not in the current active, liquid "
                     "Bitget USDT perpetual scanner universe. "
                     "No trade levels or signals were generated.")
