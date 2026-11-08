@@ -53,6 +53,8 @@ def module(monkeypatch):
     app = importlib.import_module("main")
     from config import load_settings
     monkeypatch.setattr(app, "settings", load_settings())
+    # Legacy UI regression cases intentionally exercise the archived mode.
+    monkeypatch.setattr(app, "ORDERFLOW_ONLY", False)
     return app
 
 
@@ -184,3 +186,16 @@ def test_alert_html_escapes_symbol():
         entry=100, stop_loss=98, tp1=103, tp2=105,
     )
     assert "&lt;TEST&gt;&amp;" in signal_text(signal)
+
+
+def test_live_orderflow_engines_have_separate_buttons(monkeypatch):
+    app = module(monkeypatch)
+    monkeypatch.setattr(app, "ORDERFLOW_ONLY", True)
+    query = FakeQuery("strategy")
+    update, ctx = interaction(query, FakeApplication())
+    asyncio.run(app.menu_callback(update, ctx))
+    assert "LIVE ORDERFLOW ENGINES" in query.edits[0][0]
+    choices = [b.callback_data for row in app.ORDERFLOW_STRATEGY_MENU.inline_keyboard for b in row]
+    assert choices == ["ofmode:both", "ofmode:cvd", "ofmode:wick", "menu:home"]
+    status = app._readiness()
+    assert "orderflow" in status and "scanner_fresh" in status
