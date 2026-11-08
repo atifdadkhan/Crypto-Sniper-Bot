@@ -15,4 +15,4 @@ jobs:
       - name: Syntax checks
         run: python -m compileall -q .
       - name: Candle intelligence unit tests (synthetic candles only)
-        run: python -m pytest -q tests/test_candle_intelligence.py
+        run: python -m pytest -q tests/test_candle_intelligence.py tests/test_strategy_modes.py
