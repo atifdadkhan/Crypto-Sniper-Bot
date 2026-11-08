@@ -6,6 +6,7 @@ from indicators import enrich, trend
 from macro_policy import direction_policy
 from candle_intelligence import candle_patterns
 from independent_engines import evaluate_engines
+from strategy_modes import select_mode
 
 
 @dataclass
@@ -26,6 +27,7 @@ class Signal:
     candle_close_ms: int = 0
     htf_trends: str = ""
     macro_trends: str = ""
+    strategy_name: str = ""
 
     def to_dict(self):
         return asdict(self)
@@ -157,7 +159,7 @@ def _candidate(row, side, live_price):
     )
 
 
-def _independent_candidate(row, side, live_price, evidence):
+def _independent_candidate(row, side, live_price, evidence, style_id=None):
     """Independent closed-candle entry when the legacy pullback/retest misses.
 
     A volume-only candle is NEVER an entry; the asset still needs a verified
@@ -166,7 +168,9 @@ def _independent_candidate(row, side, live_price, evidence):
     """
     names = {e.engine for e in evidence if e.confirmed}
     triggers = names & {"Liquidity Sweep", "Breakout", "Trend Continuation"}
-    if not triggers:
+    # An explicitly selected verified 15m style may provide the trigger;
+    # directional trend, live-quote, volatility and risk checks stay below.
+    if not triggers and style_id not in ("breakout", "ema", "rsi_macd"):
         return None
     try:
         live = float(live_price)
@@ -207,9 +211,12 @@ def _independent_candidate(row, side, live_price, evidence):
         return None
     score = min(10, 6 + int(adx >= 18) + int(vol >= 1.5) +
                 int(len(triggers) >= 2) + int(efficiency >= 0.22))
-    setup = ("Breakout" if "Breakout" in triggers else
-             "Liquidity Sweep" if "Liquidity Sweep" in triggers else
-             "Trend Continuation")
+    setup = ({"breakout": "Breakout", "ema": "EMA Trend Change",
+              "rsi_macd": "RSI + MACD Confirmation"}.get(style_id)
+             if not triggers else
+             ("Breakout" if "Breakout" in triggers else
+              "Liquidity Sweep" if "Liquidity Sweep" in triggers else
+              "Trend Continuation"))
     return Signal(
         symbol="", side=side, entry=live, stop_loss=stop,
         tp1=live + (1.5 * risk if is_long else -1.5 * risk),
@@ -222,7 +229,7 @@ def _independent_candidate(row, side, live_price, evidence):
 
 
 def evaluate(symbol, candles, btc_trend, eth_trend, min_score=7, current_price=None,
-             btc_return_6_pct=None, eth_return_6_pct=None):
+             btc_return_6_pct=None, eth_return_6_pct=None, strategy_mode=None):
     """Multi-timeframe quantitative setup with anti-chase and structure filters."""
     required = ("15m", "1h", "4h", "1d")
     if not isinstance(candles, dict) or any(tf not in candles for tf in required):
@@ -257,10 +264,15 @@ def evaluate(symbol, candles, btc_trend, eth_trend, min_score=7, current_price=N
                     float(h4.adx) >= 18
                 ))):
             continue
+        selected = (select_mode(candles["15m"], side, strategy_mode, "crypto")
+                    if strategy_mode is not None else None)
+        if strategy_mode is not None and selected is None:
+            continue
         candidate = _candidate(fast, side, current_price)
         if candidate is None:
             candidate = _independent_candidate(
-                fast, side, current_price, engine_evidence
+                fast, side, current_price, engine_evidence,
+                style_id=selected[0] if selected else None,
             )
         if candidate is None:
             continue
@@ -276,6 +288,13 @@ def evaluate(symbol, candles, btc_trend, eth_trend, min_score=7, current_price=N
         if independent:
             candidate.counter_macro = True
             candidate.reasons.append("Strong independent 4H trend despite BTC/ETH opposition")
+        # A selected style must independently confirm this otherwise safe
+        # core candidate; do not bypass HTF, quote, macro or anti-chase gates.
+        # None retains original research/backtest semantics; the live bot
+        # passes a selected 15m style which was checked before entry creation.
+        if selected is not None:
+            candidate.strategy_name = selected[1]
+            candidate.reasons.append("Selected style: " + selected[1])
         candidate.symbol = symbol
         candidate.htf_trends = (
             f"15m:{trend(fast)} | 1H:{h1_direction} | "

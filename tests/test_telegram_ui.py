@@ -69,7 +69,7 @@ def test_clean_home_menu_and_back_navigation(monkeypatch):
     buttons = [b.callback_data for row in app.MAIN_MENU.inline_keyboard for b in row]
     assert buttons == [
         "menu:analyze", "menu:scan", "menu:status",
-        "menu:history", "menu:settings", "menu:help",
+        "menu:history", "menu:strategy", "menu:settings", "menu:help",
     ]
     query = FakeQuery("analyze")
     update, ctx = interaction(query, FakeApplication())

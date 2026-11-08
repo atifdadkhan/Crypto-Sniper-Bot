@@ -11,7 +11,7 @@ class FakeExchange:
         self.source = candles or []
         self.quote = quote or {}
 
-    async def fetch_ohlcv(self, symbol, timeframe="15m", limit=140):
+    async def fetch_ohlcv(self, symbol, timeframe="15m", since=None, limit=140):
         return self.source
 
     async def fetch_ticker(self, symbol):

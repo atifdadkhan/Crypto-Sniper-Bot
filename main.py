@@ -23,6 +23,7 @@ from telegram.ext import Application, CallbackQueryHandler, CommandHandler, Cont
 from config import load_settings
 from exchange import MarketData, macro_snapshot
 from strategy import evaluate
+from strategy_modes import MODE_LABELS, valid_mode
 from independent_engines import evaluate_engines
 from indicators import enrich
 from opportunity_ledger import observe, summary as watch_summary
@@ -53,6 +54,7 @@ if not isinstance(state.get("cooldowns"), dict):
 state.setdefault("scan_cursor", 0)
 state.setdefault("last_scan", None)
 state.setdefault("last_error", None)
+state["strategy_mode"] = valid_mode(state.get("strategy_mode", "recommended"))
 state.setdefault("last_scan_result", {})
 if not isinstance(state.get("watch_book"), dict):
     state["watch_book"] = {}
@@ -86,6 +88,7 @@ MAIN_MENU = InlineKeyboardMarkup([
      InlineKeyboardButton("🔍 Scan Market", callback_data="menu:scan")],
     [InlineKeyboardButton("📊 Market Status", callback_data="menu:status"),
      InlineKeyboardButton("📚 Signal History", callback_data="menu:history")],
+    [InlineKeyboardButton("🎯 Signal Style", callback_data="menu:strategy")],
     [InlineKeyboardButton("⚙️ Settings", callback_data="menu:settings"),
      InlineKeyboardButton("❔ Help", callback_data="menu:help")],
 ])
@@ -96,7 +99,29 @@ SETTINGS_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("🔄 Refresh Markets", callback_data="menu:refresh")],
     [InlineKeyboardButton("⬅️ Back to Menu", callback_data="menu:home")]
 ])
+STRATEGY_MENU = InlineKeyboardMarkup([
+    [InlineKeyboardButton("⭐ Best Match (Recommended)", callback_data="mode:recommended")],
+    [InlineKeyboardButton("🚀 Breakout + Volume", callback_data="mode:breakout")],
+    [InlineKeyboardButton("📈 Early Trend (EMA)", callback_data="mode:ema")],
+    [InlineKeyboardButton("🛡️ Extra Check (RSI + MACD)", callback_data="mode:rsi_macd")],
+    [InlineKeyboardButton("⬅️ Back to Menu", callback_data="menu:home")],
+])
 health_app = Flask(__name__)
+
+
+def _strategy_text():
+    selected = valid_mode(state.get("strategy_mode", "recommended"))
+    return (
+        "🎯 <b>CHOOSE SIGNAL STYLE</b>\n\n"
+        f"Current: <b>{escape(MODE_LABELS[selected])}</b>\n\n"
+        "⭐ Best Match: bot chooses from three checks.\n"
+        "🚀 Breakout: price breaks a level with strong activity.\n"
+        "📈 Early Trend: catches a fresh trend change.\n"
+        "🛡️ Extra Check: waits for two indicators to agree.\n\n"
+        "All choices still need live-price and safety checks. "
+        "This affects 15m alerts; experimental 4H alerts are separate. "
+        "No choice guarantees profit."
+    )
 
 
 def _readiness():
@@ -182,6 +207,7 @@ def _settings_text():
         f"Markets: Top {settings.top_n or 'all eligible'}\n"
         f"Min 24h volume: {settings.min_quote_volume:,.0f} USDT\n"
         f"Signal quality floor: {settings.min_score}/10\n"
+        f"Signal style: {escape(MODE_LABELS[valid_mode(state.get('strategy_mode', 'recommended'))])}\n"
         f"Scan interval: {settings.scan_seconds // 60} min\n"
         f"15m batch: {settings.scan_batch_size or 'All'}\n"
         f"4H research engine: {'ON' if settings.rs_engine_enabled else 'OFF'}\n"
@@ -308,6 +334,15 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Acknowledge the button tap first. Network-bound work is scheduled outside
     # the update callback so the Telegram menu remains responsive.
     await query.answer()
+    if (query.data or "").startswith("mode:"):
+        requested = (query.data or "").partition(":")[2]
+        if requested not in MODE_LABELS:
+            return await _panel(query, "⚠️ Unknown signal style.", STRATEGY_MENU)
+        if scan_lock.locked():
+            return await _panel(query, "⏳ Scan running. Change the style after it finishes.", STRATEGY_MENU)
+        state["strategy_mode"] = requested
+        _save_state()
+        return await _panel(query, "✅ Style updated.\n\n" + _strategy_text(), STRATEGY_MENU)
     action = (query.data or "").partition(":")[2]
     if action != "analyze":
         context.user_data.pop("awaiting_coin", None)
@@ -327,6 +362,8 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     if action == "help":
         return await _panel(query, help_text(), BACK_MENU)
+    if action == "strategy":
+        return await _panel(query, _strategy_text(), STRATEGY_MENU)
     if action == "settings":
         return await _panel(query, _settings_text(), SETTINGS_MENU)
     if action == "status":
@@ -458,6 +495,7 @@ async def _scan_one(symbol, sem, btc, eth, core_enabled=True, four_hour_enabled=
                     symbol, candles, btc["trend"], eth["trend"], settings.min_score,
                     current_price=live, btc_return_6_pct=btc["return_6_pct"],
                     eth_return_6_pct=eth["return_6_pct"],
+                    strategy_mode=state.get("strategy_mode", "recommended"),
                 )
                 if track_opportunities:
                     evidence = [
@@ -686,7 +724,7 @@ async def run_coin_analysis(symbol):
             timeout=120,
         )
         if symbol not in all_symbols:
-            return ("⏸ <b>WAIT — not eligible</b>\\n"
+            return ("⏸ <b>WAIT — not eligible</b>\n"
                     f"{escape(symbol)} is not in the current active, liquid "
                     "Bitget USDT perpetual scanner universe. "
                     "No trade levels or signals were generated.")
