@@ -49,7 +49,10 @@ async def stream_market(exchange, symbol, tape, publish, selected, market_data, 
                 raise
             except Exception as exc:
                 tape.book = None
-                log.warning("%s trades websocket %s; retrying", symbol, type(exc).__name__)
+                tape.reset_flow()
+                status["last_trade_at"] = None
+                status["last_book_at"] = None
+                log.warning("%s trades websocket %s; CVD reset before retry", symbol, type(exc).__name__)
                 await asyncio.sleep(backoff)
                 backoff = min(30, backoff * 2)
 
