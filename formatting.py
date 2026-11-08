@@ -30,6 +30,7 @@ def signal_text(signal, risk_percent=None, max_notional=None):
             "Liquidity Sweep": "15m Liquidity Sweep",
             "Trend Continuation": "15m Trend Continuation",
         }.get(signal.setup, "15m Confirmed Setup")
+        strategy = escape(str(getattr(signal, "strategy_name", "") or strategy))
         quality = (f"⭐ {'Strong' if signal.score >= 9 else 'Good'} · "
                    f"{signal.score}/10 (setup quality, not win probability)")
 
