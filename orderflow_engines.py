@@ -45,6 +45,19 @@ class Tape:
         self.sweep_below = False
         self.last_alert = {}
 
+    def reset_flow(self):
+        """Discard incomplete CVD after a socket gap; warm up before signals."""
+        self.trades.clear()
+        self.seen.clear()
+        self.seen_order.clear()
+        self.buckets.clear()
+        self.last_bucket = None
+        self.cvd = 0.0
+        self.last_trade_at = 0.0
+        self.last_trade_ts = 0
+        self.sweep_above = self.sweep_below = False
+        self.last_alert.clear()
+
     def add_trade(self, trade, now=None):
         now = time.monotonic() if now is None else now
         identifier = trade.get("id")
@@ -66,6 +79,9 @@ class Tape:
             return False
         if self.last_trade_ts and stamp < self.last_trade_ts - 1000:
             return False
+        if self.last_trade_ts and stamp - self.last_trade_ts > 60_000:
+            # Disconnected feeds have an unknown missing signed volume.
+            self.reset_flow()
         self.last_trade_ts = max(stamp, self.last_trade_ts)
         self.seen.add(key)
         self.seen_order.append(key)
