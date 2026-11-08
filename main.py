@@ -84,20 +84,23 @@ manual_coin_task = None
 market_refresh_task = None
 
 MAIN_MENU = InlineKeyboardMarkup([
-    [InlineKeyboardButton("🔎 Analyze Coin", callback_data="menu:analyze"),
-     InlineKeyboardButton("🔍 Scan Market", callback_data="menu:scan")],
-    [InlineKeyboardButton("📊 Market Status", callback_data="menu:status"),
+    [InlineKeyboardButton("🔍 Scan Market", callback_data="menu:scan"),
+     InlineKeyboardButton("🔎 Analyze Coin", callback_data="menu:analyze")],
+    [InlineKeyboardButton("📊 Market Overview", callback_data="menu:status"),
      InlineKeyboardButton("📚 Signal History", callback_data="menu:history")],
-    [InlineKeyboardButton("🎯 Signal Style", callback_data="menu:strategy")],
-    [InlineKeyboardButton("⚙️ Settings", callback_data="menu:settings"),
+    [InlineKeyboardButton("🎯 Signal Style", callback_data="menu:strategy"),
+     InlineKeyboardButton("⚙️ Settings", callback_data="menu:settings")],
+    [InlineKeyboardButton("🩺 System Status", callback_data="menu:system"),
      InlineKeyboardButton("❔ Help", callback_data="menu:help")],
 ])
 BACK_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("⬅️ Back to Menu", callback_data="menu:home")]
 ])
 SETTINGS_MENU = InlineKeyboardMarkup([
-    [InlineKeyboardButton("🔄 Refresh Markets", callback_data="menu:refresh")],
-    [InlineKeyboardButton("⬅️ Back to Menu", callback_data="menu:home")]
+    [InlineKeyboardButton("🔄 Refresh Markets", callback_data="menu:refresh"),
+     InlineKeyboardButton("🧹 Clear Cache", callback_data="menu:cache")],
+    [InlineKeyboardButton("🎯 Signal Style", callback_data="menu:strategy"),
+     InlineKeyboardButton("⬅️ Back to Menu", callback_data="menu:home")]
 ])
 STRATEGY_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("⭐ Best Match (Recommended)", callback_data="mode:recommended")],
@@ -213,9 +216,21 @@ def _settings_text():
         f"4H research engine: {'ON' if settings.rs_engine_enabled else 'OFF'}\n"
         f"4H liquid watch: top {settings.four_hour_top_n}\n"
         f"Cooldown: {settings.cooldown_minutes} min\n"
-        f"Risk reference: {settings.risk_percent:.2f}%\n"
-        f"Position notional cap: {settings.max_position_notional:.2f} USDT\n\n"
-        "<i>Read-only configuration · No automatic orders.</i>"
+        "\n<i>You choose how much USDT to invest yourself. "
+        "These are price-level signals only; no automatic orders.</i>"
+    )
+
+
+def _system_status_text():
+    detail = _readiness()
+    scanner = "🟢 Scanning recently" if detail["scanner_fresh"] else "🟠 Scan not yet fresh"
+    return (
+        "🩺 <b>SYSTEM STATUS</b>\n"
+        f"Scanner: {scanner}\n"
+        f"Last scan: {escape(str(detail['last_scan'] or 'Not yet'))}\n"
+        f"Pending Telegram alerts: {detail['pending_alerts']}\n"
+        f"Last scan error: {escape(str(detail['last_error'] or 'None'))}\n"
+        "<i>Manual signals only. No TP/SL-hit notifications or order execution.</i>"
     )
 
 
@@ -368,6 +383,18 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await _panel(query, _settings_text(), SETTINGS_MENU)
     if action == "status":
         return await _panel(query, _scan_summary(), BACK_MENU)
+    if action == "system":
+        return await _panel(query, _system_status_text(), BACK_MENU)
+    if action == "cache":
+        if scan_lock.locked() or coin_analysis_lock.locked():
+            return await _panel(query, "⏳ Scanner busy. Clear cache after this scan.", SETTINGS_MENU)
+        # Only invalidate the short-lived liquid-market ranking. Never touch
+        # candle history, signal history, cooldowns or stored Telegram alerts.
+        client._rank_cache = (0.0, None, [])
+        return await _panel(
+            query, "✅ Crypto market-list cache cleared.\n"
+                   "Next scan refreshes eligible USDT markets.\n"
+                   "Signals, cooldowns and settings are preserved.", SETTINGS_MENU)
     if action == "history":
         return await _panel(query, _history_text(), BACK_MENU)
     if action == "refresh":
@@ -930,7 +957,7 @@ def main():
     ):
         app.add_handler(CommandHandler(command, handler))
     app.add_handler(CallbackQueryHandler(
-        menu_callback, pattern=r"^(?:menu:(?:scan|analyze|status|history|settings|help|refresh|home|strategy)|mode:(?:recommended|breakout|ema|rsi_macd))$"
+        menu_callback, pattern=r"^(?:menu:(?:scan|analyze|status|system|history|settings|help|refresh|cache|home|strategy)|mode:(?:recommended|breakout|ema|rsi_macd))$"
     ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, analyze_coin_text))
     app.add_error_handler(telegram_error_handler)
