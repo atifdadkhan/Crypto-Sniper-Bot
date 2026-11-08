@@ -99,6 +99,7 @@ def test_manual_run_uses_exact_existing_scanner_and_respects_4h_watch(monkeypatc
     monkeypatch.setenv("TELEGRAM_TOKEN", "1234:CI_DUMMY_NOT_REAL")
     monkeypatch.setenv("ADMIN_ID", "1234")
     app = importlib.import_module("main")
+    monkeypatch.setattr(app, "ORDERFLOW_ONLY", False)  # archived scanner tests
     monkeypatch.setattr(app, "settings", SimpleNamespace(
         top_n=0, min_quote_volume=500000, rs_engine_enabled=True,
         four_hour_top_n=2, signal_ttl_seconds=900, exchange_timeout_ms=20000,
@@ -134,6 +135,7 @@ def test_unlisted_market_fails_closed_without_scanning(monkeypatch):
     monkeypatch.setenv("TELEGRAM_TOKEN", "1234:CI_DUMMY_NOT_REAL")
     monkeypatch.setenv("ADMIN_ID", "1234")
     app = importlib.import_module("main")
+    monkeypatch.setattr(app, "ORDERFLOW_ONLY", False)  # archived scanner tests
     monkeypatch.setattr(app, "settings", SimpleNamespace(
         top_n=0, min_quote_volume=500000, rs_engine_enabled=True,
         four_hour_top_n=20, signal_ttl_seconds=900, exchange_timeout_ms=20000,
