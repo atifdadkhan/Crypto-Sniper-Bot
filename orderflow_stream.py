@@ -18,7 +18,7 @@ from orderflow_engines import Tape
 log = logging.getLogger("trendhive.orderflow")
 
 
-async def stream_market(exchange, symbol, tape, publish, selected, market_data):
+async def stream_market(exchange, symbol, tape, publish, selected, market_data, status):
     """Reconnect trade and L2 channels separately; never alert on stale books."""
     async def consume_trades():
         backoff = 1
@@ -29,6 +29,7 @@ async def stream_market(exchange, symbol, tape, publish, selected, market_data):
                 for trade in events or []:
                     if not tape.add_trade(trade):
                         continue
+                    status["last_trade_at"] = time.time()
                     # Each engine is evaluated independently and named in the alert.
                     for name, fn in (("cvd", tape.cvd_divergence),
                                      ("wick", tape.wick_hunt)):
@@ -36,7 +37,14 @@ async def stream_market(exchange, symbol, tape, publish, selected, market_data):
                             continue
                         signal = fn()
                         if signal is not None:
-                            await publish(signal)
+                            try:
+                                await publish(signal)
+                            except asyncio.CancelledError:
+                                raise
+                            except Exception:
+                                # Telegram failures must not burn the signal's cooldown.
+                                tape.last_alert.pop(signal.engine_id + signal.side, None)
+                                log.warning("%s %s signal delivery failed", symbol, signal.engine_id)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -51,6 +59,8 @@ async def stream_market(exchange, symbol, tape, publish, selected, market_data):
             try:
                 book = await exchange.watch_order_book(symbol, limit=5)
                 tape.set_book(book)
+                if tape.book is not None:
+                    status["last_book_at"] = time.time()
                 backoff = 1
             except asyncio.CancelledError:
                 raise
@@ -106,13 +116,14 @@ async def run_orderflow(market_data, settings, selected, publish, status):
             symbols = [s for s in symbols if s in pro.markets and pro.markets[s].get("active") is not False]
             if not symbols:
                 raise RuntimeError("No orderflow symbols supported by Bitget")
-            status.update(connected=False, symbols=symbols, error=None, last_signal=None)
+            status.update(connected=False, symbols=symbols, error=None,
+                          last_trade_at=None, last_book_at=None)
             log.info("Orderflow streams starting for %d liquid USDT futures", len(symbols))
             tasks = []
             for symbol in symbols:
                 tape = Tape(symbol)
                 tasks.append(asyncio.create_task(
-                    stream_market(pro, symbol, tape, publish, selected, market_data)))
+                    stream_market(pro, symbol, tape, publish, selected, market_data, status)))
             status.update(connected=True, started=time.time())
             backoff = 3
             try:
