@@ -29,7 +29,8 @@ from indicators import enrich
 from opportunity_ledger import observe, summary as watch_summary
 from relative_strength import evaluate_relative_strength, precheck_recent_breakout
 from slow_momentum import evaluate_slow_momentum, precheck_slow_momentum
-from formatting import signal_text, help_text
+from formatting import signal_text, help_text, price
+from orderflow_stream import run_orderflow
 from single_coin import normalize_coin, format_analysis
 from delivery import AlertOutbox
 from scan_diagnostics import safe_failure_reason
@@ -45,6 +46,7 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 log = logging.getLogger("trendhive")
 
 settings = load_settings()
+ORDERFLOW_ONLY = os.getenv("CRYPTO_ORDERFLOW_ONLY", "true").strip().lower() not in ("0", "false", "no")
 data_dir = Path(settings.data_dir)
 data_dir.mkdir(parents=True, exist_ok=True)
 STATE_FILE, HISTORY_FILE = data_dir / "state.json", data_dir / "history.json"
@@ -55,6 +57,7 @@ state.setdefault("scan_cursor", 0)
 state.setdefault("last_scan", None)
 state.setdefault("last_error", None)
 state["strategy_mode"] = valid_mode(state.get("strategy_mode", "recommended"))
+state["orderflow_mode"] = state.get("orderflow_mode") if state.get("orderflow_mode") in ("both", "cvd", "wick") else "both"
 state.setdefault("last_scan_result", {})
 if not isinstance(state.get("watch_book"), dict):
     state["watch_book"] = {}
@@ -82,6 +85,8 @@ last_delivery_error = None
 manual_scan_task = None
 manual_coin_task = None
 market_refresh_task = None
+orderflow_task = None
+orderflow_status = {"connected": False, "symbols": [], "last_trade_at": None, "last_book_at": None, "error": None}
 
 MAIN_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("🔍 Scan Market", callback_data="menu:scan"),
@@ -102,6 +107,12 @@ SETTINGS_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("🎯 Signal Style", callback_data="menu:strategy"),
      InlineKeyboardButton("⬅️ Back to Menu", callback_data="menu:home")]
 ])
+ORDERFLOW_STRATEGY_MENU = InlineKeyboardMarkup([
+    [InlineKeyboardButton("⭐ Both Orderflow Engines", callback_data="ofmode:both")],
+    [InlineKeyboardButton("📉 CVD Divergence", callback_data="ofmode:cvd")],
+    [InlineKeyboardButton("💧 Liquidity Wick Hunt", callback_data="ofmode:wick")],
+    [InlineKeyboardButton("⬅️ Back to Menu", callback_data="menu:home")],
+])
 STRATEGY_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("⭐ Best Match (Recommended)", callback_data="mode:recommended")],
     [InlineKeyboardButton("🚀 Breakout + Volume", callback_data="mode:breakout")],
@@ -113,6 +124,15 @@ health_app = Flask(__name__)
 
 
 def _strategy_text():
+    if ORDERFLOW_ONLY:
+        mode = {"both": "Both Orderflow Engines", "cvd": "CVD Divergence",
+                "wick": "Liquidity Wick Hunt"}[state["orderflow_mode"]]
+        return ("🎯 <b>LIVE ORDERFLOW ENGINES</b>\n\n"
+                f"Selected: <b>{escape(mode)}</b>\n\n"
+                "📉 CVD: aggressive trade-volume divergence with reversal.\n"
+                "💧 Wick Hunt: 1H stop sweep, 3:1 L2 imbalance, VWAP reversion.\n"
+                "Indicators RSI/MACD/EMA are disabled.\n"
+                "Signals only; no authenticated order execution.")
     selected = valid_mode(state.get("strategy_mode", "recommended"))
     return (
         "🎯 <b>CHOOSE SIGNAL STYLE</b>\n\n"
@@ -128,6 +148,15 @@ def _strategy_text():
 
 
 def _readiness():
+    if ORDERFLOW_ONLY:
+        t, b = orderflow_status.get("last_trade_at"), orderflow_status.get("last_book_at")
+        fresh = bool(t and b and time.time() - t < 30 and time.time() - b < 30)
+        return {"scanner_fresh": fresh, "last_scan_age_seconds": None,
+                "pending_alerts": len(outbox.items), "last_error": orderflow_status.get("error"),
+                "last_scan": "Live CCXT Pro orderflow streams",
+                "scan": {"symbols": len(orderflow_status.get("symbols") or []),
+                         "universe": len(orderflow_status.get("symbols") or []), "scan_batch": 0},
+                "orderflow": dict(orderflow_status)}
     last = state.get("last_scan_epoch")
     try:
         seconds = int(time.time() - float(last)) if last is not None else None
@@ -178,6 +207,15 @@ def _save_history():
 
 
 def _scan_summary():
+    if ORDERFLOW_ONLY:
+        detail = _readiness()
+        symbols = orderflow_status.get("symbols") or []
+        return ("📊 <b>LIVE ORDERFLOW MARKET OVERVIEW</b>\n"
+                f"Market: Bitget USDT perpetuals | Watching: {len(symbols)} pairs\n"
+                f"Symbols: {escape(', '.join(s.split('/')[0] for s in symbols))}\n"
+                f"WebSocket trades + L2 fresh: {'YES' if detail['scanner_fresh'] else 'NOT YET'}\n"
+                f"Active mode: {escape(state['orderflow_mode'])}\n"
+                "Each engine sends separate named signals. No auto orders.")
     result = last_scan_result
     research = watch_summary(state["watch_book"], state["watch_outcomes"])
     return (
@@ -204,6 +242,14 @@ def _scan_summary():
 
 
 def _settings_text():
+    if ORDERFLOW_ONLY:
+        return ("⚙️ <b>LIVE BITGET ORDERFLOW SETTINGS</b>\n"
+                f"Markets: dynamic top {escape(os.getenv('ORDERFLOW_TOP_N', '8'))} liquid USDT swaps\n"
+                f"Minimum 24h volume: {settings.min_quote_volume:,.0f} USDT\n"
+                f"Engines: {escape(state['orderflow_mode'])}\n"
+                "Free CCXT Pro trades + L2 depth; 1H swing levels.\n"
+                "Old RSI, MACD and EMA signal engines: OFF.\n"
+                "You choose your own investment; no live orders.")
     return (
         "⚙️ <b>SCANNER SETTINGS</b>\n"
         "━━━━━━━━━━━━━━━━━\n"
@@ -222,6 +268,13 @@ def _settings_text():
 
 
 def _system_status_text():
+    if ORDERFLOW_ONLY:
+        detail = _readiness()
+        return ("🩺 <b>ORDERFLOW SYSTEM STATUS</b>\n"
+                f"Live trade/book freshness: {'OK' if detail['scanner_fresh'] else 'WAIT / DEGRADED'}\n"
+                f"Watching: {len(orderflow_status.get('symbols') or [])} liquid USDT pairs\n"
+                f"Latest stream error: {escape(str(orderflow_status.get('error') or 'None'))}\n"
+                "Separate CVD / Wick Hunt engines; no automatic orders.")
     detail = _readiness()
     scanner = "🟢 Scanning recently" if detail["scanner_fresh"] else "🟠 Scan not yet fresh"
     return (
@@ -349,6 +402,14 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Acknowledge the button tap first. Network-bound work is scheduled outside
     # the update callback so the Telegram menu remains responsive.
     await query.answer()
+    if ORDERFLOW_ONLY and (query.data or "").startswith("ofmode:"):
+        requested = (query.data or "").partition(":")[2]
+        if requested in ("both", "cvd", "wick"):
+            state["orderflow_mode"] = requested
+            _save_state()
+        return await _panel(query, "✅ Orderflow engines updated.\n\n" + _strategy_text(), ORDERFLOW_STRATEGY_MENU)
+    if ORDERFLOW_ONLY and (query.data or "").startswith("mode:"):
+        return await _panel(query, _strategy_text(), ORDERFLOW_STRATEGY_MENU)
     if (query.data or "").startswith("mode:"):
         requested = (query.data or "").partition(":")[2]
         if requested not in MODE_LABELS:
@@ -378,7 +439,8 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if action == "help":
         return await _panel(query, help_text(), BACK_MENU)
     if action == "strategy":
-        return await _panel(query, _strategy_text(), STRATEGY_MENU)
+        return await _panel(query, _strategy_text(),
+                            ORDERFLOW_STRATEGY_MENU if ORDERFLOW_ONLY else STRATEGY_MENU)
     if action == "settings":
         return await _panel(query, _settings_text(), SETTINGS_MENU)
     if action == "status":
@@ -409,6 +471,8 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     if action == "scan":
+        if ORDERFLOW_ONLY:
+            return await _panel(query, _scan_summary(), BACK_MENU)
         if scan_lock.locked() or (
             manual_scan_task is not None and not manual_scan_task.done()
         ):
@@ -732,6 +796,12 @@ async def run_scan(bot=None, chat_id=None):
 
 async def run_coin_analysis(symbol):
     """Manual read-only dual-engine evaluation, never an alert or automatic order."""
+    if ORDERFLOW_ONLY:
+        active = symbol in (orderflow_status.get("symbols") or [])
+        return (f"🔎 <b>{escape(symbol)}</b>\n"
+                + ("✅ Live trade/order-book feed is configured for this pair.\n" if active
+                   else "⏸ Not in the current liquid orderflow watch; no fake analysis.\n")
+                + "Signals appear automatically only on confirmed CVD or wick events.")
     if coin_analysis_lock.locked():
         return "⏳ Another coin analysis is running. Try again shortly."
     # Queue one analysis instead of forcing the user to resend after each scan.
@@ -850,6 +920,9 @@ async def scan_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global manual_scan_task
     if not authorized(update):
         return await deny(update)
+    if ORDERFLOW_ONLY:
+        return await update.effective_message.reply_text(
+            _scan_summary(), parse_mode=ParseMode.HTML, reply_markup=MAIN_MENU)
     if scan_lock.locked() or (
         manual_scan_task is not None and not manual_scan_task.done()
     ):
@@ -897,6 +970,39 @@ async def scheduled_opportunity_report(context: ContextTypes.DEFAULT_TYPE):
         log.warning("Opportunity report unavailable: %s", type(exc).__name__)
 
 
+async def publish_orderflow_signal(application, signal):
+    """Send one real-time signal with its independent engine ID and price levels."""
+    key = f"{signal.engine_id}|{signal.symbol}|{signal.side}"
+    last = state["cooldowns"].get(key)
+    if last is not None and cooldown_active(last, settings.cooldown_minutes):
+        return
+    body = (
+        f"🚨 <b>LIVE ORDERFLOW | {escape(signal.side)}</b>\n"
+        f"<b>{escape(signal.symbol)}</b> | <b>{escape(signal.strategy_name)}</b>\n"
+        f"🔬 Engine: <code>{escape(signal.engine_id)}</code>\n"
+        f"🎯 Entry: <code>{price(signal.entry)}</code> USDT\n"
+        f"🛑 Stop Loss: <code>{price(signal.stop_loss)}</code> USDT\n"
+        f"✅ TP1: <code>{price(signal.tp1)}</code> USDT\n"
+        f"🏆 TP2: <code>{price(signal.tp2)}</code> USDT\n"
+        f"📊 {escape(signal.reason)}\n"
+        "⚠️ Entry is the observed trade price, not a guaranteed fill. "
+        "Manual action only; no automatic orders or TP-hit alerts."
+    )
+    await application.bot.send_message(chat_id=settings.admin_id, text=body,
+                                       parse_mode=ParseMode.HTML, reply_markup=MAIN_MENU)
+    history.append({"symbol": signal.symbol, "side": signal.side,
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "engine_id": signal.engine_id, "strategy_name": signal.strategy_name,
+                    "entry": signal.entry, "stop_loss": signal.stop_loss,
+                    "tp1": signal.tp1, "tp2": signal.tp2})
+    del history[:-300]
+    _save_history()
+    state["cooldowns"][key] = time.time()
+    _save_state()
+    log.info("Orderflow Telegram signal delivered: %s %s %s",
+             signal.symbol, signal.engine_id, signal.side)
+
+
 async def post_init(application: Application):
     try:
         await application.bot.set_my_commands([
@@ -915,6 +1021,18 @@ async def post_init(application: Application):
         log.info("Loaded %d Bitget markets", len(client.markets))
     except Exception as exc:
         log.warning("Initial market discovery failed: %s", type(exc).__name__)
+    global orderflow_task
+    if ORDERFLOW_ONLY:
+        orderflow_task = asyncio.create_task(
+            run_orderflow(client, settings,
+                          lambda: state.get("orderflow_mode", "both"),
+                          lambda signal: publish_orderflow_signal(application, signal),
+                          orderflow_status), name="live_bitget_orderflow")
+        if application.job_queue:
+            application.job_queue.run_repeating(retry_pending, interval=60, first=60,
+                                                name="retry_telegram_alerts")
+        log.info("CVD and Wick Hunt live engines enabled; old EMA/RSI/MACD scanners OFF")
+        return
     if application.job_queue:
         # Align repeat scans with a just-closed 15m candle instead of a random
         # offset determined by Render's process boot time.
@@ -933,6 +1051,9 @@ async def post_init(application: Application):
 
 
 async def post_shutdown(application: Application):
+    if orderflow_task is not None:
+        orderflow_task.cancel()
+        await asyncio.gather(orderflow_task, return_exceptions=True)
     await client.close()
 
 
@@ -957,7 +1078,7 @@ def main():
     ):
         app.add_handler(CommandHandler(command, handler))
     app.add_handler(CallbackQueryHandler(
-        menu_callback, pattern=r"^(?:menu:(?:scan|analyze|status|system|history|settings|help|refresh|cache|home|strategy)|mode:(?:recommended|breakout|ema|rsi_macd))$"
+        menu_callback, pattern=r"^(?:menu:(?:scan|analyze|status|system|history|settings|help|refresh|cache|home|strategy)|mode:(?:recommended|breakout|ema|rsi_macd)|ofmode:(?:both|cvd|wick))$"
     ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, analyze_coin_text))
     app.add_error_handler(telegram_error_handler)
