@@ -38,17 +38,17 @@ def signal_text(signal, risk_percent=None, max_notional=None):
         f"🚨 <b>NEW SIGNAL | {side}</b>",
         f"<b>{symbol}</b> · {escape(strategy)}",
         quality,
-        f"🎯 Entry: <code>{price(signal.entry)}</code>",
-        f"🛑 Stop Loss: <code>{price(signal.stop_loss)}</code>",
+        f"🎯 Entry: <code>{price(signal.entry)}</code> USDT",
+        f"🛑 Stop Loss: <code>{price(signal.stop_loss)}</code> USDT",
     ]
     if kind in ("RS_4H", "SLOW_4H"):
-        lines.append(f"🏆 Target (3R): <code>{price(signal.tp2)}</code>")
+        lines.append(f"🏆 Target (3R): <code>{price(signal.tp2)}</code> USDT")
         lines.append("⏳ Review after 5 days; no automatic exit." if kind == "RS_4H"
                      else "⏳ Review after 10 days; no automatic exit.")
     else:
         lines.extend([
-            f"✅ TP1: <code>{price(signal.tp1)}</code>",
-            f"🏆 TP2: <code>{price(signal.tp2)}</code>",
+            f"✅ TP1: <code>{price(signal.tp1)}</code> USDT",
+            f"🏆 TP2: <code>{price(signal.tp2)}</code> USDT",
         ])
     if kind == "CORE_15M":
         for label, raw in (
