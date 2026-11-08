@@ -58,7 +58,7 @@ def test_liquidity_wick_reclaim_requires_three_to_one_book():
     tape.swing_high = 105.0
     tape.swing_refreshed = 1210
     for i in range(110):
-        px = 94.0 if i == 80 else 96.0 if i == 109 else 100.0
+        px = 94.5 if i == 80 else 96.0 if i == 109 else 100.0
         tape.add_trade({
             "id": str(i), "timestamp": 1_780_000_000_000 + i * 2000,
             "side": "sell" if i == 80 else "buy",
