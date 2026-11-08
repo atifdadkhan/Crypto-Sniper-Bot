@@ -68,8 +68,8 @@ def test_clean_home_menu_and_back_navigation(monkeypatch):
     app = module(monkeypatch)
     buttons = [b.callback_data for row in app.MAIN_MENU.inline_keyboard for b in row]
     assert buttons == [
-        "menu:analyze", "menu:scan", "menu:status",
-        "menu:history", "menu:strategy", "menu:settings", "menu:help",
+        "menu:scan", "menu:analyze", "menu:status", "menu:history",
+        "menu:strategy", "menu:settings", "menu:system", "menu:help",
     ]
     query = FakeQuery("analyze")
     update, ctx = interaction(query, FakeApplication())
@@ -127,6 +127,35 @@ def test_refresh_callback_is_nonblocking(monkeypatch):
     asyncio.run(app.menu_callback(update, ctx))
     assert query.answers and fake_app.tasks == ["manual_market_refresh"]
 
+
+
+def test_signal_style_menu_and_system_status_buttons(monkeypatch):
+    app = module(monkeypatch)
+    signal = FakeQuery("strategy")
+    update, ctx = interaction(signal, FakeApplication())
+    asyncio.run(app.menu_callback(update, ctx))
+    assert "CHOOSE SIGNAL STYLE" in signal.edits[0][0]
+    assert len(app.STRATEGY_MENU.inline_keyboard) == 5
+
+    status = FakeQuery("system")
+    update2, ctx2 = interaction(status, FakeApplication())
+    asyncio.run(app.menu_callback(update2, ctx2))
+    assert "SYSTEM STATUS" in status.edits[0][0]
+
+
+def test_clear_cache_only_resets_market_list(monkeypatch):
+    app = module(monkeypatch)
+    app.client._rank_cache = (999999.0, "old", ["BTC/USDT:USDT"])
+    app.scan_lock = asyncio.Lock()
+    app.coin_analysis_lock = asyncio.Lock()
+    app.state["cooldowns"]["BTC/USDT:USDT|LONG"] = 123.0
+    previous = dict(app.state["cooldowns"])
+    query = FakeQuery("cache")
+    update, ctx = interaction(query, FakeApplication())
+    asyncio.run(app.menu_callback(update, ctx))
+    assert app.client._rank_cache == (0.0, None, [])
+    assert app.state["cooldowns"] == previous
+    assert "preserved" in query.edits[0][0]
 
 def test_compact_signals_keep_exact_4h_target_and_core_tp1_tp2():
     core = SimpleNamespace(
