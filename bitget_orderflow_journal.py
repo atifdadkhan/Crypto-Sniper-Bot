@@ -83,7 +83,7 @@ def english_alert(signal, fmt):
         market_line = "🟡 <b>Market: Not strong enough for extended targets</b>"
 
     lines = [
-        "🚨 <b>BITGET SIGNAL · FUTURES</b>",
+        "🚨 <b>BITGET FUTURES SIGNAL</b>",
         f"<b>{escape(coin)}</b>  ·  <b>{direction_icon} {direction}</b>",
         "━━━━━━━━━━━━━━━━━━",
         f"🧠 <b>Strategy:</b> {escape(str(signal.strategy_name))}",
