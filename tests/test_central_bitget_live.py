@@ -100,7 +100,7 @@ def test_4h_signal_is_single_original_target_not_invented_multiple_targets():
     s = normalized_candle_signal(record, int(time.time() * 1000))
     alert = __import__("bitget_orderflow_journal").english_alert(s, str)
     assert "4H Relative Strength Breakout" in alert
-    assert "TP1: <code>91" in alert and "TP2: OFF" in alert
+    assert "TP1:</b> <code>91" in alert and "TP2: OFF" in alert
     record["market_condition"] = "STRONG"
     strong_single = normalized_candle_signal(record, int(time.time() * 1000))
     single = __import__("bitget_orderflow_journal").trade_plan(strong_single)
