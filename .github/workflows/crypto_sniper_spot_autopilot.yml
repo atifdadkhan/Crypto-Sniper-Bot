@@ -53,6 +53,8 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Validate project and spot-engine tests
+        run: python -m pytest -q
       - name: Discover the current eligible Binance Spot USDT universe
         id: matrix
         env:
