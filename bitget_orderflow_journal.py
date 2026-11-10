@@ -65,38 +65,52 @@ def trade_plan(signal):
 
 
 def english_alert(signal, fmt):
-    """English HTML for Bitget LONG/SHORT, without promising fills or targets."""
+    """Bold, emoji-led Telegram alert in plain trading language."""
     plan = trade_plan(signal)
     f = lambda v: escape(fmt(v))
+    side = plan["side"]
+    coin = str(signal.symbol).split("/")[0].split(":")[0]
+    is_buy = side == "LONG"
+    direction = "BUY / LONG" if is_buy else "SELL / SHORT"
+    direction_icon = "🟢" if is_buy else "🔴"
+    if plan["condition"] == "STRONG":
+        market_line = (
+            "📈 <b>Market: Strong upward move supports this BUY</b>"
+            if is_buy else
+            "📉 <b>Market: Strong downward move supports this SELL</b>"
+        )
+    else:
+        market_line = "🟡 <b>Market: Not strong enough for extended targets</b>"
+
     lines = [
-        f"🚨 <b>BITGET FUTURES | {escape(plan['side'])}</b>",
-        f"<b>{escape(str(signal.symbol))}</b>",
-        f"📌 Strategy: <b>{escape(str(signal.strategy_name))}</b>",
-        f"🔬 Engine: <code>{escape(str(signal.engine_id))}</code>",
-        f"🌐 Market Condition: <b>{plan['condition']}</b> (closed 1H trend)",
-        f"🎯 Entry: <code>{f(plan['entry'])}</code> USDT (observed price)",
-        f"📍 Entry Price Range: <code>{f(plan['entry_low'])} – {f(plan['entry_high'])}</code> USDT",
-        f"🛑 Stop Loss: <code>{f(plan['stop_loss'])}</code> USDT",
-        f"✅ TP1: <code>{f(plan['tp1'])}</code> USDT",
+        "🚨 <b>BITGET FUTURES SIGNAL</b>",
+        f"<b>{escape(coin)}</b>  ·  <b>{direction_icon} {direction}</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        f"🧠 <b>Strategy:</b> {escape(str(signal.strategy_name))}",
+        market_line,
+        f"🎯 <b>Entry Price Range:</b> <code>{f(plan['entry_low'])} – {f(plan['entry_high'])}</code> USDT",
+        f"✅ <b>TP1:</b> <code>{f(plan['tp1'])}</code> USDT",
     ]
     if plan["moonshot"]:
         lines.extend([
-            f"🏆 TP2: <code>{f(plan['tp2'])}</code> USDT",
-            "🚀 Moonshot: Trail the final 20% after TP2 (1R trailing distance)",
-            "📈 Paper exit split: TP1 50% | TP2 30% | Moonshot 20%",
+            f"🏆 <b>TP2:</b> <code>{f(plan['tp2'])}</code> USDT",
+            "🚀 <b>Moonshot:</b> Trail the final 20% if price keeps moving beyond TP2.",
         ])
     else:
+        tp2_reason = (
+            "not used by this strategy"
+            if plan["condition"] == "STRONG" else
+            "off because the market is not strong enough"
+        )
         lines.extend([
-            ("🏆 TP2: OFF — single-target strategy"
-             if plan["condition"] == "STRONG" else
-             "🏆 TP2: OFF — cautious market"),
-            "🚀 Moonshot: OFF — close at TP1",
-            "📈 Paper exit plan: TP1 100%",
+            f"🏆 <b>TP2: OFF</b> — {tp2_reason}.",
+            "🚀 <b>Moonshot: OFF</b> — planned exit is at TP1.",
         ])
     lines.extend([
-        f"📊 Reason: {escape(str(signal.reason))}",
-        "⚠️ Signals only; entry range is guidance, not a guaranteed fill. "
-        "Outcome journal uses closed-candle PAPER estimates, not real P&L. No auto orders.",
+        f"🛑 <b>Stop Loss:</b> <code>{f(plan['stop_loss'])}</code> USDT",
+        "━━━━━━━━━━━━━━━━━━",
+        "📒 <i>Every delivered signal is recorded and tracked against closed Bitget candles. "
+        "Results are paper estimates, not actual fills or account P&amp;L. No auto orders.</i>",
     ])
     return "\n".join(lines)
 
@@ -294,3 +308,67 @@ class BitgetPaperJournal:
                    SUM(CASE WHEN status='OPEN_PAPER' THEN 1 ELSE 0 END) open
               FROM paper_signals
         """).fetchone())
+
+
+    def performance_by_strategy(self):
+        """Closed-candle paper scorecard; open/gap records are not wins or losses."""
+        rows = self.conn.execute("""
+            SELECT engine_id,
+                   COUNT(*) AS signals,
+                   SUM(CASE WHEN status='CLOSED' AND net_pct>0 THEN 1 ELSE 0 END) AS wins,
+                   SUM(CASE WHEN status='CLOSED' AND net_pct<=0 THEN 1 ELSE 0 END) AS losses,
+                   SUM(CASE WHEN status='OPEN_PAPER' THEN 1 ELSE 0 END) AS open,
+                   SUM(CASE WHEN status='UNVERIFIABLE_DATA_GAP' THEN 1 ELSE 0 END) AS gaps,
+                   AVG(CASE WHEN status='CLOSED' THEN net_pct END) AS avg_net_pct
+              FROM paper_signals
+             GROUP BY engine_id
+             ORDER BY engine_id
+        """).fetchall()
+        return [dict(row) for row in rows]
+
+    def research_breakdown(self):
+        """Group results by engine, coin, direction and recorded market condition."""
+        groups = {}
+        rows = self.conn.execute("""
+            SELECT engine_id, symbol, side, status, net_pct, data
+              FROM paper_signals
+        """).fetchall()
+        for row in rows:
+            try:
+                payload = json.loads(row["data"] or "{}")
+            except (TypeError, ValueError):
+                payload = {}
+            plan = payload.get("plan") or {}
+            condition = str(plan.get("condition") or "UNKNOWN")
+            key = (row["engine_id"], row["symbol"], row["side"], condition)
+            item = groups.setdefault(key, {
+                "engine_id": key[0], "symbol": key[1], "side": key[2],
+                "condition": condition, "signals": 0, "wins": 0, "losses": 0,
+                "open": 0, "gaps": 0, "closed_returns": [],
+            })
+            item["signals"] += 1
+            status = row["status"]
+            if status == "CLOSED":
+                if row["net_pct"] is not None and float(row["net_pct"]) > 0:
+                    item["wins"] += 1
+                else:
+                    item["losses"] += 1
+                if row["net_pct"] is not None:
+                    item["closed_returns"].append(float(row["net_pct"]))
+            elif status == "OPEN_PAPER":
+                item["open"] += 1
+            elif status == "UNVERIFIABLE_DATA_GAP":
+                item["gaps"] += 1
+        result = []
+        for item in groups.values():
+            returns = item.pop("closed_returns")
+            item["closed"] = item["wins"] + item["losses"]
+            item["avg_net_pct"] = (
+                sum(returns) / len(returns) if returns else None
+            )
+            result.append(item)
+        return sorted(
+            result,
+            key=lambda x: (x["closed"], x["signals"], x["engine_id"], x["symbol"]),
+            reverse=True,
+        )

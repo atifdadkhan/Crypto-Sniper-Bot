@@ -444,6 +444,80 @@ async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+def _research_text():
+    """Readable, evidence-based scorecard from delivered Bitget paper signals."""
+    journal = _bitget_journal()
+    counts = journal.outcome_counts()
+    strategies = journal.performance_by_strategy()
+    breakdown = journal.research_breakdown()
+    wins, losses = counts.get("wins") or 0, counts.get("losses") or 0
+    open_count, gaps = counts.get("open") or 0, counts.get("gaps") or 0
+    closed = wins + losses
+    lines = [
+        "🔬 <b>STRATEGY RESEARCH REPORT</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        f"📊 <b>All signals:</b> {wins} wins · {losses} losses · "
+        f"{open_count} still open · {gaps} unverified data gaps",
+        "",
+        "<b>RESULTS BY STRATEGY</b>",
+    ]
+    if not strategies:
+        lines.append("No delivered signals have been recorded yet.")
+    for item in strategies:
+        sw, sl = item.get("wins") or 0, item.get("losses") or 0
+        done = sw + sl
+        rate = (100.0 * sw / done) if done else None
+        avg = item.get("avg_net_pct")
+        avg_text = f"{float(avg):+.2f}%" if avg is not None else "not available"
+        rate_text = f"{rate:.0f}%" if rate is not None else "not enough closed results"
+        lines.append(
+            f"• <b>{escape(str(item['engine_id']))}</b>: "
+            f"{item['signals']} signals · {sw} wins / {sl} losses · "
+            f"{rate_text} win rate · {avg_text} average paper return"
+        )
+    lines.extend(["", "<b>COIN + DIRECTION + MARKET BREAKDOWN</b>"])
+    if not breakdown:
+        lines.append("No coin-level results yet.")
+    for item in breakdown[:10]:
+        coin = str(item["symbol"]).split("/")[0].split(":")[0]
+        done = item["closed"]
+        rate = 100.0 * item["wins"] / done if done else None
+        avg = item.get("avg_net_pct")
+        rate_text = f"{rate:.0f}% wins" if rate is not None else "no closed results"
+        avg_text = f"{float(avg):+.2f}% avg" if avg is not None else "avg unavailable"
+        lines.append(
+            f"• <b>{escape(coin)} {escape(str(item['side']))}</b> · "
+            f"{escape(str(item['engine_id']))} · {escape(str(item['condition']))}: "
+            f"{item['wins']}W/{item['losses']}L · {rate_text} · {avg_text}"
+        )
+    lines.extend([
+        "",
+        "<b>HOW THIS HELPS FUTURE RESEARCH</b>",
+        "We keep each delivered signal, its strategy, coin, direction, market condition, "
+        "the 40 available closed 1H candles before the signal, and the following closed "
+        "candles used for its paper result.",
+        "Open trades and data gaps are not counted as wins or losses. Treat groups with "
+        "fewer than 20 closed examples as early evidence only. Test any proposed change "
+        "with out-of-sample / walk-forward backtesting before changing live strategies.",
+        "<i>Paper estimates from public Bitget candles — not real fills or account P&amp;L. "
+        "No automatic orders.</i>",
+    ])
+    return "\n".join(lines)
+
+
+async def research_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not authorized(update):
+        return await deny(update)
+    try:
+        report = _research_text()
+    except Exception as exc:
+        log.warning("Bitget research report unavailable: %s", type(exc).__name__)
+        report = "⚠️ Research report unavailable. The saved signal journal was not changed."
+    await update.effective_message.reply_text(
+        report, parse_mode=ParseMode.HTML, reply_markup=BACK_MENU
+    )
+
+
 async def _panel(query, text, keyboard=BACK_MENU):
     """Edit a navigation panel in place, but never overwrite a trade alert."""
     current = getattr(query.message, "text", "") or ""
@@ -1191,6 +1265,7 @@ async def post_init(application: Application):
             BotCommand("status", "Scanner health and coverage"),
             BotCommand("settings", "Scanner settings"),
             BotCommand("history", "Delivered signals only"),
+            BotCommand("research", "Strategy and coin paper performance"),
             BotCommand("help", "Help and commands"),
         ])
     except Exception as exc:
@@ -1262,6 +1337,7 @@ def main():
         ("start", start_cmd), ("help", help_cmd), ("scan", scan_cmd),
         ("analyze", analyze_cmd),
         ("status", status_cmd), ("settings", settings_cmd), ("history", history_cmd),
+        ("research", research_cmd),
     ):
         app.add_handler(CommandHandler(command, handler))
     app.add_handler(CallbackQueryHandler(

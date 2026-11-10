@@ -39,7 +39,9 @@ def test_alert_cautious_tp1_only_and_safe_html():
     assert "Entry Price Range" in body
     assert "Stop Loss" in body
     assert "TP2: OFF" in body and "Moonshot: OFF" in body
-    assert "TP1 100%" in body
+    assert "TP1:" in body
+    assert "<b>&lt;BTC&gt;&amp;</b>" in body
+    assert "BUY / LONG" in body
     assert "No auto orders" in body
     assert trade_plan(s)["tp2"] is None
 
@@ -51,6 +53,58 @@ def test_strong_plan_two_targets_and_moonshot():
     assert p["entry_low"] < p["entry"] < p["entry_high"]
     text = english_alert(signal(condition="STRONG"), str)
     assert "Moonshot" in text and "TP2:" in text
+
+
+def test_plain_language_alert_is_bold_colorful_and_side_aware():
+    body = english_alert(signal(side="SHORT", condition="STRONG"), str)
+    assert "🚨 <b>BITGET FUTURES SIGNAL</b>" in body
+    assert "<b>BTC</b>" in body
+    assert "🔴" in body and "SELL / SHORT" in body
+    assert "Strong downward move supports this SELL" in body
+    assert "Entry Price Range" in body and "Stop Loss" in body
+    assert "Engine:" not in body
+    assert "closed 1H trend" not in body
+    assert "No auto orders" in body
+
+
+def test_research_breakdown_groups_engine_coin_side_and_market(tmp_path):
+    j = BitgetPaperJournal(tmp_path / "research.sqlite3")
+    winner = signal(timestamp=11 * HOUR_MS + HOUR_MS // 2)
+    winner.market_condition = "STRONG"
+    j.record_delivered(winner)
+
+    loser = signal(side="SHORT", timestamp=12 * HOUR_MS + HOUR_MS // 2)
+    loser.engine_id = "WICK_HUNT"
+    loser.symbol = "ETH/USDT:USDT"
+    loser.market_condition = "CAUTIOUS"
+    j.record_delivered(loser)
+
+    with j.conn:
+        j.conn.execute(
+            "UPDATE paper_signals SET status='CLOSED', net_pct=1.25 WHERE engine_id='CVD_DIVERGENCE'"
+        )
+        j.conn.execute(
+            "UPDATE paper_signals SET status='CLOSED', net_pct=-0.75 WHERE engine_id='WICK_HUNT'"
+        )
+
+    scorecard = {x["engine_id"]: x for x in j.performance_by_strategy()}
+    assert scorecard["CVD_DIVERGENCE"]["wins"] == 1
+    assert scorecard["CVD_DIVERGENCE"]["losses"] == 0
+    assert scorecard["CVD_DIVERGENCE"]["avg_net_pct"] == pytest.approx(1.25)
+    assert scorecard["WICK_HUNT"]["losses"] == 1
+
+    groups = j.research_breakdown()
+    assert any(
+        x["engine_id"] == "CVD_DIVERGENCE" and x["symbol"] == "BTC/USDT:USDT"
+        and x["side"] == "LONG" and x["condition"] == "STRONG" and x["wins"] == 1
+        for x in groups
+    )
+    assert any(
+        x["engine_id"] == "WICK_HUNT" and x["symbol"] == "ETH/USDT:USDT"
+        and x["side"] == "SHORT" and x["condition"] == "CAUTIOUS" and x["losses"] == 1
+        for x in groups
+    )
+    j.close()
 
 
 def test_invalid_geometry_is_rejected():
