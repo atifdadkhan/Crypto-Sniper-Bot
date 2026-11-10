@@ -99,6 +99,8 @@ The supplied C-C2 `funding_meanrev_chop` function currently thresholds funding z
 
 The spot scanner generates `signal_results/spot_signals_english.txt` and includes each formatted English message under `english_message` in the signal JSON. BUY messages show the strategy, Entry Price Range, TP1, TP2 (only if STRONG), Moonshot trailing instructions (only if STRONG), Stop Loss, and a brief plan. EXIT_TO_USDT signals say SELL / EXIT, never SHORT.
 
+The scanner also exports `signal_results/spot_signal_outcome_review.csv`, grouping completed paper wins/losses by coin, timeframe, strategy and market condition. Groups under 30 completed trades are explicitly marked `INSUFFICIENT_SAMPLE`; larger groups remain research-only pending forward validation.
+
 `spot_signal_journal.py` stores the original 40 pre-signal OHLCV candles, each deduplicated signal and transition event, entry/exit candle snapshots, and a paper-outcome record in SQLite. Each scan rechecks new completed candles for the coin/timeframe. Trade status can progress from PENDING_ENTRY to OPEN_PAPER, TP1_PARTIAL, MOONSHOT_PAPER or CLOSED; unfilled entries can EXPIRE/CANCEL. Conservative stop-first order is used for overlapping target/stop candle ranges. Strong setups use paper fractions of 50% TP1 / 30% TP2 / 20% Moonshot, if conditions remain strong. Weak/cautious setups exit at TP1 only.
 
 **Persistent local PowerShell command (run from the Crypto Sniper project root):**
