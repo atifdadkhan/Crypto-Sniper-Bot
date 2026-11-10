@@ -31,6 +31,7 @@ from relative_strength import evaluate_relative_strength, precheck_recent_breako
 from slow_momentum import evaluate_slow_momentum, precheck_slow_momentum
 from formatting import signal_text, help_text, price
 from orderflow_stream import run_orderflow
+from bitget_orderflow_journal import BitgetPaperJournal, english_alert
 from single_coin import normalize_coin, format_analysis
 from delivery import AlertOutbox
 from scan_diagnostics import safe_failure_reason
@@ -68,6 +69,18 @@ if not isinstance(history, list):
     history = []
 
 outbox = AlertOutbox(data_dir / "telegram_outbox.json", settings.signal_ttl_seconds)
+bitget_paper_journal = None
+
+
+def _bitget_journal():
+    """Lazy SQLite connection; its database lives beside existing history.json."""
+    global bitget_paper_journal
+    if bitget_paper_journal is None:
+        bitget_paper_journal = BitgetPaperJournal(
+            data_dir / "bitget_orderflow_paper.sqlite3"
+        )
+    return bitget_paper_journal
+
 scan_lock = asyncio.Lock()
 coin_analysis_lock = asyncio.Lock()
 delivery_lock = asyncio.Lock()
@@ -302,6 +315,19 @@ def _history_text():
         lines.append(f"• <b>{symbol}</b> · {side}\n"
                      f"  {escape(str(strategy))} · {stamp}")
     lines.append("\n<i>Only confirmed Telegram deliveries, not trade fills.</i>")
+    if ORDERFLOW_ONLY:
+        try:
+            counts = _bitget_journal().outcome_counts()
+            lines.append(
+                "\n<b>Bitget PAPER outcomes (1H closed candles):</b> "
+                f"{counts.get('wins') or 0} wins, "
+                f"{counts.get('losses') or 0} losses, "
+                f"{counts.get('open') or 0} open, "
+                f"{counts.get('gaps') or 0} unverified data gaps."
+            )
+            lines.append("<i>Paper estimates only; not exchange-executed P&amp;L.</i>")
+        except Exception as exc:
+            log.warning("Bitget paper journal history unavailable: %s", type(exc).__name__)
     return "\n".join(lines)
 
 
@@ -971,30 +997,28 @@ async def scheduled_opportunity_report(context: ContextTypes.DEFAULT_TYPE):
 
 
 async def publish_orderflow_signal(application, signal):
-    """Send one real-time signal with its independent engine ID and price levels."""
+    """Send Bitget alert, then persist only confirmed Telegram delivery."""
     key = f"{signal.engine_id}|{signal.symbol}|{signal.side}"
     last = state["cooldowns"].get(key)
     if last is not None and cooldown_active(last, settings.cooldown_minutes):
         return
-    body = (
-        f"🚨 <b>LIVE ORDERFLOW | {escape(signal.side)}</b>\n"
-        f"<b>{escape(signal.symbol)}</b> | <b>{escape(signal.strategy_name)}</b>\n"
-        f"🔬 Engine: <code>{escape(signal.engine_id)}</code>\n"
-        f"🎯 Entry: <code>{price(signal.entry)}</code> USDT\n"
-        f"🛑 Stop Loss: <code>{price(signal.stop_loss)}</code> USDT\n"
-        f"✅ TP1: <code>{price(signal.tp1)}</code> USDT\n"
-        f"🏆 TP2: <code>{price(signal.tp2)}</code> USDT\n"
-        f"📊 {escape(signal.reason)}\n"
-        "⚠️ Entry is the observed trade price, not a guaranteed fill. "
-        "Manual action only; no automatic orders or TP-hit alerts."
-    )
+    body = english_alert(signal, price)
     await application.bot.send_message(chat_id=settings.admin_id, text=body,
                                        parse_mode=ParseMode.HTML, reply_markup=MAIN_MENU)
+    # A journal failure must never cause Telegram signal delivery to be retried.
+    # This ID is a simulated paper entry, NOT an authenticated exchange fill.
+    paper_id = None
+    try:
+        paper_id = _bitget_journal().record_delivered(signal)
+    except Exception as exc:
+        log.warning("Bitget paper signal journaling failed: %s", type(exc).__name__)
     history.append({"symbol": signal.symbol, "side": signal.side,
                     "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                     "engine_id": signal.engine_id, "strategy_name": signal.strategy_name,
                     "entry": signal.entry, "stop_loss": signal.stop_loss,
-                    "tp1": signal.tp1, "tp2": signal.tp2})
+                    "tp1": signal.tp1, "tp2": signal.tp2,
+                    "market_condition": getattr(signal, "market_condition", "CAUTIOUS"),
+                    "paper_signal_id": paper_id})
     del history[:-300]
     _save_history()
     state["cooldowns"][key] = time.time()
@@ -1002,6 +1026,28 @@ async def publish_orderflow_signal(application, signal):
     log.info("Orderflow Telegram signal delivered: %s %s %s",
              signal.symbol, signal.engine_id, signal.side)
 
+
+async def refresh_bitget_paper_outcomes(context):
+    """Check delivered signal outcomes on validated, closed Bitget 1h candles.
+
+    This is intentionally separate from Telegram delivery and exchange orders.
+    Unavailable/stale candle feeds do not fabricate wins or losses.
+    """
+    try:
+        journal = _bitget_journal()
+        symbols = journal.open_symbols()
+    except Exception as exc:
+        log.warning("Bitget paper journal unavailable: %s", type(exc).__name__)
+        return
+    for symbol in symbols:
+        try:
+            frame = await asyncio.wait_for(client.candles(symbol, "1h"), timeout=40)
+            journal.advance(symbol, frame)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.warning("Bitget paper outcome refresh %s: %s",
+                        symbol, type(exc).__name__)
 
 async def post_init(application: Application):
     try:
@@ -1031,6 +1077,9 @@ async def post_init(application: Application):
         if application.job_queue:
             application.job_queue.run_repeating(retry_pending, interval=60, first=60,
                                                 name="retry_telegram_alerts")
+            application.job_queue.run_repeating(refresh_bitget_paper_outcomes,
+                                                interval=900, first=180,
+                                                name="bitget_paper_outcome_refresh")
         log.info("CVD and Wick Hunt live engines enabled; old EMA/RSI/MACD scanners OFF")
         return
     if application.job_queue:
