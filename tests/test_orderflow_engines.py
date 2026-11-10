@@ -38,6 +38,13 @@ def test_book_imbalance_must_have_fresh_valid_spread():
     assert not tape.market_ok(now=1222)  # stale book
 
 
+def test_invalid_book_clears_previous_quote():
+    tape = _fed_tape()
+    tape.set_book({'bids': [[101, 2]], 'asks': [[100, 3]]}, now=1219)
+    assert tape.book is None
+    assert not tape.market_ok(now=1219)
+
+
 def test_bearish_price_hh_and_cvd_ll():
     tape = _fed_tape()
     tape.buckets.clear()

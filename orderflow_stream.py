@@ -18,7 +18,7 @@ from orderflow_engines import Tape
 log = logging.getLogger("trendhive.orderflow")
 
 
-async def stream_market(exchange, symbol, tape, publish, selected, market_data, status):
+async def stream_market(exchange, symbol, tape, publish, selected, market_data, status, paper=None):
     """Reconnect trade and L2 channels separately; never alert on stale books."""
     async def consume_trades():
         backoff = 1
@@ -64,6 +64,9 @@ async def stream_market(exchange, symbol, tape, publish, selected, market_data, 
                 tape.set_book(book)
                 if tape.book is not None:
                     status["last_book_at"] = time.time()
+                    if paper is not None:
+                        bids, asks = tape.book
+                        paper.quote(symbol, bids[0][0], asks[0][0])
                 backoff = 1
             except asyncio.CancelledError:
                 raise
@@ -96,7 +99,7 @@ async def stream_market(exchange, symbol, tape, publish, selected, market_data, 
         await asyncio.gather(*tasks, return_exceptions=True)
 
 
-async def run_orderflow(market_data, settings, selected, publish, status):
+async def run_orderflow(market_data, settings, selected, publish, status, paper=None):
     """Live rolling 24/7 public WS subscriptions, safe reconnection and refresh."""
     backoff = 3
     while True:
@@ -109,6 +112,9 @@ async def run_orderflow(market_data, settings, selected, publish, status):
             if not ranked:
                 raise RuntimeError("No eligible high-volume Bitget swap symbols")
             symbols = list(dict.fromkeys(["BTC/USDT:USDT"] + ranked))[:limit]
+            if paper is not None:
+                # Keep monitoring existing paper positions after rank rotation.
+                symbols = list(dict.fromkeys(symbols + paper.open_symbols()))
             pro = ccxtpro.bitget({
                 "enableRateLimit": True,
                 "timeout": 20000,
@@ -126,7 +132,7 @@ async def run_orderflow(market_data, settings, selected, publish, status):
             for symbol in symbols:
                 tape = Tape(symbol)
                 tasks.append(asyncio.create_task(
-                    stream_market(pro, symbol, tape, publish, selected, market_data, status)))
+                    stream_market(pro, symbol, tape, publish, selected, market_data, status, paper)))
             status.update(connected=True, started=time.time())
             backoff = 3
             try:

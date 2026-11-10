@@ -31,6 +31,7 @@ from relative_strength import evaluate_relative_strength, precheck_recent_breako
 from slow_momentum import evaluate_slow_momentum, precheck_slow_momentum
 from formatting import signal_text, help_text, price
 from orderflow_stream import run_orderflow
+from paper_ledger import PaperLedger
 from single_coin import normalize_coin, format_analysis
 from delivery import AlertOutbox
 from scan_diagnostics import safe_failure_reason
@@ -49,6 +50,7 @@ settings = load_settings()
 ORDERFLOW_ONLY = os.getenv("CRYPTO_ORDERFLOW_ONLY", "true").strip().lower() not in ("0", "false", "no")
 data_dir = Path(settings.data_dir)
 data_dir.mkdir(parents=True, exist_ok=True)
+paper = PaperLedger(data_dir / "paper.sqlite3")
 STATE_FILE, HISTORY_FILE = data_dir / "state.json", data_dir / "history.json"
 state = load_json(STATE_FILE, {})
 if not isinstance(state.get("cooldowns"), dict):
@@ -340,6 +342,26 @@ async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.effective_message.reply_text(
         _history_text(), parse_mode=ParseMode.HTML, reply_markup=BACK_MENU
     )
+
+
+async def paper_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not authorized(update):
+        return await deny(update)
+    result = paper.summary()
+    pf = result['profit_factor']
+    engine_lines = '\n'.join(
+        f"{name}: {m['trades']} closed, {m['net_pnl']:+.2f} USDT"
+        for name, m in result['engines'].items())
+    await update.effective_message.reply_text(
+        'FORWARD PAPER ACCOUNT — simulated only\n'
+        f"Realized balance: {result['balance_realized']:.2f} / initial 10000 USDT\n"
+        f"Open: {result['open']} | Rejected: {result['rejected']}\n"
+        f"Valid closed: {result['valid_closed']} | Feed-gap trades: {result['feed_gap_trades']}\n"
+        f"Valid net P/L: {result['valid_net_pnl']:+.2f} USDT | PF: {pf if pf is not None else 'N/A'}\n"
+        + engine_lines + '\n'
+        'Includes assumed fees, spread, slippage and adverse funding. '
+        'Open P/L excluded. Feed-gap outcomes excluded from valid statistics. '
+        'No live approval or proven profitability.', reply_markup=BACK_MENU)
 
 
 async def _panel(query, text, keyboard=BACK_MENU):
@@ -990,6 +1012,10 @@ async def publish_orderflow_signal(application, signal):
     )
     await application.bot.send_message(chat_id=settings.admin_id, text=body,
                                        parse_mode=ParseMode.HTML, reply_markup=MAIN_MENU)
+    try:
+        paper.record(signal)
+    except Exception:
+        log.exception("Forward paper record failed; signal was already delivered")
     history.append({"symbol": signal.symbol, "side": signal.side,
                     "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                     "engine_id": signal.engine_id, "strategy_name": signal.strategy_name,
@@ -1012,6 +1038,7 @@ async def post_init(application: Application):
             BotCommand("status", "Scanner health and coverage"),
             BotCommand("settings", "Scanner settings"),
             BotCommand("history", "Delivered signals only"),
+            BotCommand("paper", "Forward simulated results after costs"),
             BotCommand("help", "Help and commands"),
         ])
     except Exception as exc:
@@ -1027,7 +1054,7 @@ async def post_init(application: Application):
             run_orderflow(client, settings,
                           lambda: state.get("orderflow_mode", "both"),
                           lambda signal: publish_orderflow_signal(application, signal),
-                          orderflow_status), name="live_bitget_orderflow")
+                          orderflow_status, paper=paper), name="live_bitget_orderflow")
         if application.job_queue:
             application.job_queue.run_repeating(retry_pending, interval=60, first=60,
                                                 name="retry_telegram_alerts")
@@ -1055,6 +1082,7 @@ async def post_shutdown(application: Application):
         orderflow_task.cancel()
         await asyncio.gather(orderflow_task, return_exceptions=True)
     await client.close()
+    paper.close()
 
 
 async def telegram_error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1074,6 +1102,7 @@ def main():
     for command, handler in (
         ("start", start_cmd), ("help", help_cmd), ("scan", scan_cmd),
         ("analyze", analyze_cmd),
+        ("paper", paper_cmd),
         ("status", status_cmd), ("settings", settings_cmd), ("history", history_cmd),
     ):
         app.add_handler(CommandHandler(command, handler))
