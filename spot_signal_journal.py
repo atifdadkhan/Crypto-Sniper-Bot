@@ -193,8 +193,31 @@ class SignalJournal:
         if cur.rowcount:
             self._event(sid, bar_ts, "SIGNAL_EMITTED",
                         candle=_snapshot(frame, 1)[0])
+        if signal["action"] == "EXIT_TO_USDT":
+            self.request_exit(signal)
         self.conn.commit()
         return sid
+
+    def request_exit(self, signal):
+        """Cancel unfilled entries or close a matching paper position next bar."""
+        stamp = _utc(signal.get("signal_candle_utc", signal["candle_close_utc"]))
+        rows = self.conn.execute(
+            "SELECT signal_id,state_json FROM signals WHERE symbol=? AND timeframe=? "
+            "AND strategy=? AND action='BUY' "
+            "AND status NOT IN ('CLOSED','EXPIRED','CANCELLED')",
+            (signal["symbol"], signal["timeframe"], signal["strategy"])).fetchall()
+        for sid, raw in rows:
+            state = json.loads(raw)
+            if state["status"] == "PENDING_ENTRY":
+                state["status"] = "CANCELLED"
+                self._event(sid, stamp, "STRATEGY_CANCELLED_ENTRY")
+            elif "exit_requested_after_utc" not in state:
+                state["exit_requested_after_utc"] = stamp
+                self._event(sid, stamp, "STRATEGY_EXIT_REQUESTED")
+            self.conn.execute(
+                "UPDATE signals SET status=?,state_json=?,updated_utc=? WHERE signal_id=?",
+                (state["status"], json.dumps(state, allow_nan=False),
+                 datetime.now(timezone.utc).isoformat(), sid))
 
     def _sell(self, sid, state, ts, price, portion, reason, candle):
         state["closed_fraction"] = min(1.0, state["closed_fraction"]+portion)
@@ -251,6 +274,11 @@ class SignalJournal:
                         continue
                     else:
                         continue
+                # Explicit strategy EXIT is executed at the NEXT completed candle open.
+                if (s.get("exit_requested_after_utc") is not None
+                        and ts > s["exit_requested_after_utc"]):
+                    self._finish(sid, s, ts, op, "STRATEGY_EXIT", candle)
+                    continue
                 # The previously established stop applies before new targets/trailing levels.
                 stop = max(p["stop_loss"], s["trail_stop"] or 0)
                 if op <= stop or lo <= stop:
