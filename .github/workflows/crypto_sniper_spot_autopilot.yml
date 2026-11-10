@@ -1,0 +1,180 @@
+name: Crypto Sniper Spot Autopilot Research
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: Historical lookback days (120-2000)
+        required: true
+        default: "365"
+        type: string
+      min_history_days:
+        description: Minimum actual history required for a coin to be retained
+        required: true
+        default: "7"
+        type: string
+      min_quote_volume:
+        description: Minimum 24h USDT quote turnover
+        required: true
+        default: "500000"
+        type: string
+      batch_size:
+        description: Spot symbols per download batch
+        required: true
+        default: "10"
+        type: string
+      fee_slippage_pct:
+        description: Estimated combined round-trip fee plus slippage (% notional)
+        required: true
+        default: "0.12"
+        type: string
+  schedule:
+    - cron: "17 2 * * 1"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: crypto-sniper-spot-autopilot
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      spot_matrix: ${{ steps.matrix.outputs.spot_matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Discover the current eligible Binance Spot USDT universe
+        id: matrix
+        env:
+          BATCH_SIZE: ${{ inputs.batch_size || '10' }}
+          MIN_QUOTE_VOLUME: ${{ inputs.min_quote_volume || '500000' }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from backtesting.download_binance import discover, exchange_for
+          ex = exchange_for("spot")
+          try:
+              universe = discover(ex, "spot", float(os.environ["MIN_QUOTE_VOLUME"]))
+              size = int(os.environ["BATCH_SIZE"])
+              batches = [universe[i:i+size] for i in range(0, len(universe), size)]
+              if not batches:
+                  raise SystemExit("No eligible Binance Spot USDT markets discovered; refusing an empty run.")
+              matrix = {"include": [
+                  {"batch": i, "symbols": [symbol for symbol, volume in batch]}
+                  for i, batch in enumerate(batches)
+              ]}
+              with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+                  out.write("spot_matrix=" + json.dumps(matrix) + "\\n")
+              print("Eligible spot markets:", len(universe))
+              print("Independent download batches:", len(batches))
+          finally:
+              ex.close()
+          PY
+
+  spot_batches:
+    needs: discover
+    if: ${{ fromJson(needs.discover.outputs.spot_matrix).include[0] != null }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJson(needs.discover.outputs.spot_matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Download this spot batch with per-coin history coverage
+        env:
+          SYMBOLS_JSON: ${{ toJson(matrix.symbols) }}
+          DAYS: ${{ inputs.days || '365' }}
+          MIN_HISTORY_DAYS: ${{ inputs.min_history_days || '7' }}
+        run: |
+          python - <<'PY'
+          import json, os, subprocess, sys
+          symbols = json.loads(os.environ["SYMBOLS_JSON"])
+          command = [
+              sys.executable, "-m", "backtesting.download_binance", "download",
+              "--market-type", "spot", "--symbols", ",".join(symbols),
+              "--days", os.environ["DAYS"],
+              "--min-history-days", os.environ["MIN_HISTORY_DAYS"],
+              "--out", "data",
+          ]
+          result = subprocess.run(command)
+          if not os.path.isfile("data/download_manifest.json"):
+              raise SystemExit(result.returncode or 1)
+          print("Downloader exit:", result.returncode,
+                "(manifest retained; individual failures remain visible)")
+          PY
+      - name: Run 12 independent spot engines on every validated coin
+        run: |
+          python -m backtesting.spot_strategy_runner \
+            --data-dir data \
+            --output-dir backtest_results/spot_strategy_engines \
+            --fee-slippage-pct "${{ inputs.fee_slippage_pct || '0.12' }}" \
+            --minimum-oos-trades 30
+      - name: Generate latest completed-candle spot signals
+        run: |
+          python scripts/spot_signal_scan.py \
+            --data-dir data \
+            --output-dir signal_results \
+            --timeframes 15m,1h,4h,1d
+      - name: Upload resumable spot research and signal batch
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crypto-sniper-spot-autopilot-batch-${{ matrix.batch }}
+          path: |
+            data/
+            backtest_results/spot_strategy_engines/
+            signal_results/
+          if-no-files-found: warn
+          retention-days: 90
+
+  aggregate:
+    needs: [discover, spot_batches]
+    if: ${{ always() && needs.spot_batches.result != 'cancelled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Restore all completed spot batches
+        uses: actions/download-artifact@v4
+        with:
+          pattern: crypto-sniper-spot-autopilot-batch-*
+          path: batch_results
+        continue-on-error: true
+      - name: Build global per-coin and per-strategy OOS rankings
+        run: |
+          python -m backtesting.aggregate_spot_strategy_results \
+            --input-dir batch_results \
+            --output-dir backtest_results/spot_autopilot \
+            --minimum-oos-trades 30
+      - name: Upload complete spot autopilot report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crypto-sniper-spot-autopilot-report-${{ github.run_id }}
+          path: backtest_results/spot_autopilot/
+          if-no-files-found: warn
+          retention-days: 90
