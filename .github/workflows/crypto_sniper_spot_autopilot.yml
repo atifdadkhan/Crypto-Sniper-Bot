@@ -131,7 +131,7 @@ jobs:
             --minimum-oos-trades 30
       - name: Generate latest completed-candle spot signals
         run: |
-          python scripts/spot_signal_scan.py \
+          python -m scripts.spot_signal_scan \
             --data-dir data \
             --output-dir signal_results \
             --timeframes 15m,1h,4h,1d
