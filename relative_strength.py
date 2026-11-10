@@ -38,6 +38,8 @@ class RelativeStrengthSignal:
     timeframe: str = "4H"
     ttl_seconds: int = 3600
     counter_macro: bool = False
+    market_condition: str = "CAUTIOUS"
+    closed_1h: tuple = ()
 
     def to_dict(self):
         return asdict(self)

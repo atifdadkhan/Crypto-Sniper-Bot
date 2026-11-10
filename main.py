@@ -32,6 +32,10 @@ from slow_momentum import evaluate_slow_momentum, precheck_slow_momentum
 from formatting import signal_text, help_text, price
 from orderflow_stream import run_orderflow
 from bitget_orderflow_journal import BitgetPaperJournal, english_alert
+from central_bitget_strategies import (
+    attach_hour_context, live_registry, normalized_candle_signal,
+    unified_candle_alert,
+)
 from single_coin import normalize_coin, format_analysis
 from delivery import AlertOutbox
 from scan_diagnostics import safe_failure_reason
@@ -48,6 +52,9 @@ log = logging.getLogger("trendhive")
 
 settings = load_settings()
 ORDERFLOW_ONLY = os.getenv("CRYPTO_ORDERFLOW_ONLY", "true").strip().lower() not in ("0", "false", "no")
+# Centralize all supported Bitget perpetual engines without enabling Binance Spot.
+# The original ORDERFLOW_ONLY mode remains available by setting this to false.
+UNIFIED_LIVE = os.getenv("CRYPTO_UNIFIED_LIVE", "true").strip().lower() not in ("0", "false", "no")
 data_dir = Path(settings.data_dir)
 data_dir.mkdir(parents=True, exist_ok=True)
 STATE_FILE, HISTORY_FILE = data_dir / "state.json", data_dir / "history.json"
@@ -120,6 +127,16 @@ SETTINGS_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("🎯 Signal Style", callback_data="menu:strategy"),
      InlineKeyboardButton("⬅️ Back to Menu", callback_data="menu:home")]
 ])
+CENTRAL_STRATEGY_MENU = InlineKeyboardMarkup([
+    [InlineKeyboardButton("⭐ Both Orderflow Engines", callback_data="ofmode:both")],
+    [InlineKeyboardButton("📉 CVD Divergence", callback_data="ofmode:cvd"),
+     InlineKeyboardButton("💧 Wick Hunt", callback_data="ofmode:wick")],
+    [InlineKeyboardButton("🧠 15m Best Match", callback_data="mode:recommended")],
+    [InlineKeyboardButton("🚀 15m Breakout", callback_data="mode:breakout"),
+     InlineKeyboardButton("📈 15m EMA", callback_data="mode:ema")],
+    [InlineKeyboardButton("🛡️ 15m Extra Check", callback_data="mode:rsi_macd")],
+    [InlineKeyboardButton("⬅️ Back to Menu", callback_data="menu:home")],
+])
 ORDERFLOW_STRATEGY_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("⭐ Both Orderflow Engines", callback_data="ofmode:both")],
     [InlineKeyboardButton("📉 CVD Divergence", callback_data="ofmode:cvd")],
@@ -144,8 +161,12 @@ def _strategy_text():
                 f"Selected: <b>{escape(mode)}</b>\n\n"
                 "📉 CVD: aggressive trade-volume divergence with reversal.\n"
                 "💧 Wick Hunt: 1H stop sweep, 3:1 L2 imbalance, VWAP reversion.\n"
-                "Indicators RSI/MACD/EMA are disabled.\n"
-                "Signals only; no authenticated order execution.")
+                + ("<b>Central Bitget mode:</b> 15m Pullback/Breakout and "
+                   "4H Relative Strength/Slow Momentum are ALSO running.\n"
+                   f"15m style: {escape(MODE_LABELS[valid_mode(state['strategy_mode'])])}.\n"
+                   if UNIFIED_LIVE else
+                   "The 15m/4H scheduled scanners are disabled.\n")
+                + "Signals only; no authenticated order execution.")
     selected = valid_mode(state.get("strategy_mode", "recommended"))
     return (
         "🎯 <b>CHOOSE SIGNAL STYLE</b>\n\n"
@@ -164,22 +185,50 @@ def _readiness():
     if ORDERFLOW_ONLY:
         t, b = orderflow_status.get("last_trade_at"), orderflow_status.get("last_book_at")
         fresh = bool(t and b and time.time() - t < 30 and time.time() - b < 30)
-        return {"scanner_fresh": fresh, "last_scan_age_seconds": None,
-                "pending_alerts": len(outbox.items), "last_error": orderflow_status.get("error"),
-                "last_scan": "Live CCXT Pro orderflow streams",
-                "scan": {"symbols": len(orderflow_status.get("symbols") or []),
-                         "universe": len(orderflow_status.get("symbols") or []), "scan_batch": 0},
-                "orderflow": dict(orderflow_status)}
+        detail = {"scanner_fresh": fresh, "last_scan_age_seconds": None,
+                  "pending_alerts": len(outbox.items), "last_error": orderflow_status.get("error"),
+                  "last_scan": "Live CCXT Pro orderflow streams",
+                  "scan": {"symbols": len(orderflow_status.get("symbols") or []),
+                           "universe": len(orderflow_status.get("symbols") or []), "scan_batch": 0},
+                  "orderflow": dict(orderflow_status)}
+        if UNIFIED_LIVE:
+            stamp = state.get("last_scan_epoch")
+            try:
+                age = int(time.time() - float(stamp)) if stamp else None
+            except (ValueError, TypeError):
+                age = None
+            detail["candle_scanner_fresh"] = bool(
+                age is not None and 0 <= age < max(settings.scan_seconds * 2, 1800)
+            )
+            detail["candle_scan_age_seconds"] = age
+            detail["candle_scan_error"] = state.get("last_error")
+            detail["candle_scan"] = last_scan_result
+            detail["orderflow_fresh"] = fresh
+            detail["central_strategies"] = live_registry(
+                state["orderflow_mode"], True, settings.rs_engine_enabled
+            )
+        return detail
     last = state.get("last_scan_epoch")
     try:
         seconds = int(time.time() - float(last)) if last is not None else None
     except (ValueError, TypeError):
         seconds = None
     is_fresh = seconds is not None and 0 <= seconds < max(settings.scan_seconds * 2, 1800)
-    return {"scanner_fresh": is_fresh, "last_scan_age_seconds": seconds,
-            "pending_alerts": len(outbox.items),
-            "last_error": state.get("last_error"),
-            "last_scan": state.get("last_scan"), "scan": last_scan_result}
+    detail = {"scanner_fresh": is_fresh, "last_scan_age_seconds": seconds,
+              "pending_alerts": len(outbox.items),
+              "last_error": state.get("last_error"),
+              "last_scan": state.get("last_scan"), "scan": last_scan_result}
+    if UNIFIED_LIVE:
+        t, b = orderflow_status.get("last_trade_at"), orderflow_status.get("last_book_at")
+        flow_fresh = bool(t and b and time.time() - t < 30 and time.time() - b < 30)
+        detail["orderflow_fresh"] = flow_fresh
+        detail["orderflow"] = dict(orderflow_status)
+        detail["candle_scanner_fresh"] = is_fresh
+        detail["candle_scan_error"] = state.get("last_error")
+        detail["central_strategies"] = live_registry(
+            state["orderflow_mode"], True, settings.rs_engine_enabled
+        )
+    return detail
 
 
 @health_app.get("/")
@@ -194,6 +243,12 @@ def health():
 def ready():
     detail = _readiness()
     ready_now = bool(detail["scanner_fresh"] and detail["last_error"] is None)
+    if UNIFIED_LIVE:
+        ready_now = bool(
+            ready_now and detail.get("orderflow_fresh")
+            and detail.get("candle_scanner_fresh")
+            and detail.get("candle_scan_error") is None
+        )
     return jsonify(status="ready" if ready_now else "degraded", **detail), (200 if ready_now else 503)
 
 
@@ -223,12 +278,25 @@ def _scan_summary():
     if ORDERFLOW_ONLY:
         detail = _readiness()
         symbols = orderflow_status.get("symbols") or []
-        return ("📊 <b>LIVE ORDERFLOW MARKET OVERVIEW</b>\n"
-                f"Market: Bitget USDT perpetuals | Watching: {len(symbols)} pairs\n"
+        central = ""
+        if UNIFIED_LIVE:
+            central = (
+                "\n<b>15m + 4H candle scanner:</b> "
+                f"{'FRESH' if detail.get('candle_scanner_fresh') else 'WAIT / DEGRADED'}\n"
+                f"Last scan: {escape(str(state.get('last_scan') or 'Not yet'))}\n"
+                f"Scanned: {last_scan_result.get('symbols', 0)} / "
+                f"{last_scan_result.get('universe', 0)}\n"
+                f"15m queued: {last_scan_result.get('core15m_queued', 0)} | "
+                f"4H RS: {last_scan_result.get('rs4h_queued', 0)} | "
+                f"4H Slow: {last_scan_result.get('slow4h_queued', 0)}\n"
+                f"Last candle-scan error: {escape(str(state.get('last_error') or 'None'))}\n"
+            )
+        return ("📊 <b>CENTRAL BITGET MARKET OVERVIEW</b>\n"
+                f"Market: Bitget USDT perpetuals | Orderflow watch: {len(symbols)} pairs\n"
                 f"Symbols: {escape(', '.join(s.split('/')[0] for s in symbols))}\n"
                 f"WebSocket trades + L2 fresh: {'YES' if detail['scanner_fresh'] else 'NOT YET'}\n"
-                f"Active mode: {escape(state['orderflow_mode'])}\n"
-                "Each engine sends separate named signals. No auto orders.")
+                f"Orderflow mode: {escape(state['orderflow_mode'])}\n"
+                + central + "Signals only; no automatic orders.")
     result = last_scan_result
     research = watch_summary(state["watch_book"], state["watch_outcomes"])
     return (
@@ -261,8 +329,13 @@ def _settings_text():
                 f"Minimum 24h volume: {settings.min_quote_volume:,.0f} USDT\n"
                 f"Engines: {escape(state['orderflow_mode'])}\n"
                 "Free CCXT Pro trades + L2 depth; 1H swing levels.\n"
-                "Old RSI, MACD and EMA signal engines: OFF.\n"
-                "You choose your own investment; no live orders.")
+                + ("15m closed-candle scanner: ON (rotating liquid Bitget markets).\n"
+                   f"4H RS + Slow Momentum: {'ON' if settings.rs_engine_enabled else 'OFF'} "
+                   f"(liquid top {settings.four_hour_top_n}).\n"
+                   f"15m style: {escape(MODE_LABELS[valid_mode(state['strategy_mode'])])}.\n"
+                   if UNIFIED_LIVE else
+                   "15m/4H scanners: OFF (orderflow-only configuration).\n")
+                + "You choose your own investment; no live orders.")
     return (
         "⚙️ <b>SCANNER SETTINGS</b>\n"
         "━━━━━━━━━━━━━━━━━\n"
@@ -287,7 +360,10 @@ def _system_status_text():
                 f"Live trade/book freshness: {'OK' if detail['scanner_fresh'] else 'WAIT / DEGRADED'}\n"
                 f"Watching: {len(orderflow_status.get('symbols') or [])} liquid USDT pairs\n"
                 f"Latest stream error: {escape(str(orderflow_status.get('error') or 'None'))}\n"
-                "Separate CVD / Wick Hunt engines; no automatic orders.")
+                + (f"15m/4H scanner: {'FRESH' if detail.get('candle_scanner_fresh') else 'WAIT / DEGRADED'}\n"
+                   f"Candle-scan error: {escape(str(detail.get('candle_scan_error') or 'None'))}\n"
+                   if UNIFIED_LIVE else "")
+                + "Separate engines, centralized paper ledger; no automatic orders.")
     detail = _readiness()
     scanner = "🟢 Scanning recently" if detail["scanner_fresh"] else "🟠 Scan not yet fresh"
     return (
@@ -433,18 +509,22 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if requested in ("both", "cvd", "wick"):
             state["orderflow_mode"] = requested
             _save_state()
-        return await _panel(query, "✅ Orderflow engines updated.\n\n" + _strategy_text(), ORDERFLOW_STRATEGY_MENU)
-    if ORDERFLOW_ONLY and (query.data or "").startswith("mode:"):
+        return await _panel(query, "✅ Orderflow engines updated.\n\n" + _strategy_text(),
+                            CENTRAL_STRATEGY_MENU if UNIFIED_LIVE else ORDERFLOW_STRATEGY_MENU)
+    if ORDERFLOW_ONLY and not UNIFIED_LIVE and (query.data or "").startswith("mode:"):
         return await _panel(query, _strategy_text(), ORDERFLOW_STRATEGY_MENU)
     if (query.data or "").startswith("mode:"):
         requested = (query.data or "").partition(":")[2]
         if requested not in MODE_LABELS:
-            return await _panel(query, "⚠️ Unknown signal style.", STRATEGY_MENU)
+            return await _panel(query, "⚠️ Unknown signal style.",
+                                CENTRAL_STRATEGY_MENU if UNIFIED_LIVE else STRATEGY_MENU)
         if scan_lock.locked():
-            return await _panel(query, "⏳ Scan running. Change the style after it finishes.", STRATEGY_MENU)
+            return await _panel(query, "⏳ Scan running. Change the style after it finishes.",
+                                CENTRAL_STRATEGY_MENU if UNIFIED_LIVE else STRATEGY_MENU)
         state["strategy_mode"] = requested
         _save_state()
-        return await _panel(query, "✅ Style updated.\n\n" + _strategy_text(), STRATEGY_MENU)
+        return await _panel(query, "✅ Style updated.\n\n" + _strategy_text(),
+                            CENTRAL_STRATEGY_MENU if UNIFIED_LIVE else STRATEGY_MENU)
     action = (query.data or "").partition(":")[2]
     if action != "analyze":
         context.user_data.pop("awaiting_coin", None)
@@ -466,7 +546,8 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await _panel(query, help_text(), BACK_MENU)
     if action == "strategy":
         return await _panel(query, _strategy_text(),
-                            ORDERFLOW_STRATEGY_MENU if ORDERFLOW_ONLY else STRATEGY_MENU)
+                            CENTRAL_STRATEGY_MENU if UNIFIED_LIVE else
+                             (ORDERFLOW_STRATEGY_MENU if ORDERFLOW_ONLY else STRATEGY_MENU))
     if action == "settings":
         return await _panel(query, _settings_text(), SETTINGS_MENU)
     if action == "status":
@@ -497,7 +578,7 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     if action == "scan":
-        if ORDERFLOW_ONLY:
+        if ORDERFLOW_ONLY and not UNIFIED_LIVE:
             return await _panel(query, _scan_summary(), BACK_MENU)
         if scan_lock.locked() or (
             manual_scan_task is not None and not manual_scan_task.done()
@@ -511,6 +592,28 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             name="manual_market_scan",
         )
         return
+
+
+def _confirmed_signal_history(record, paper_signal, delivery_id=None):
+    """One history/journal finalizer used by BOTH orderflow and candle engines.
+
+    Called only after Telegram send_message returns successfully. No exchange
+    execution is implied. Ledger failures must not re-send a delivered alert.
+    """
+    item = dict(record)
+    if delivery_id:
+        item["delivery_id"] = delivery_id
+    try:
+        item["paper_signal_id"] = _bitget_journal().record_delivered(paper_signal)
+    except Exception as exc:
+        item["paper_signal_id"] = None
+        log.warning("Central Bitget paper journal failed: %s", type(exc).__name__)
+    item.pop("closed_1h", None)  # Actual OHLCV snapshot stays in SQLite, not JSON history.
+    if not delivery_id or not any(x.get("delivery_id") == delivery_id for x in history):
+        history.append(item)
+        del history[:-300]
+        _save_history()
+    return item["paper_signal_id"]
 
 
 async def _deliver_pending(bot, chat_id, limit=5):
@@ -540,11 +643,31 @@ async def _deliver_pending(bot, chat_id, limit=5):
                 break
             # A crash between send and persist may produce one duplicate after restart.
             item_data = dict(item["signal"])
-            item_data["delivery_id"] = item["id"]
-            if not any(x.get("delivery_id") == item["id"] for x in history):
-                history.append(item_data)
-                del history[:-300]
-                _save_history()
+            if UNIFIED_LIVE:
+                try:
+                    converted = normalized_candle_signal(
+                        item_data, int(time.time() * 1000), source_key=item["id"]
+                    )
+                    item_data["engine_id"] = converted.engine_id
+                    _confirmed_signal_history(item_data, converted, delivery_id=item["id"])
+                except Exception as exc:
+                    # Telegram already acknowledged the send. Never re-send
+                    # solely because journal normalization failed.
+                    log.warning("Central Bitget candle journal conversion failed: %s",
+                                type(exc).__name__)
+                    item_data["delivery_id"] = item["id"]
+                    item_data["paper_signal_id"] = None
+                    item_data.pop("closed_1h", None)
+                    if not any(x.get("delivery_id") == item["id"] for x in history):
+                        history.append(item_data)
+                        del history[:-300]
+                        _save_history()
+            else:
+                item_data["delivery_id"] = item["id"]
+                if not any(x.get("delivery_id") == item["id"] for x in history):
+                    history.append(item_data)
+                    del history[:-300]
+                    _save_history()
             engine = item_data.get("strategy_id", "CORE_15M")
             state["cooldowns"][f"{engine}|{item_data['symbol']}|{item_data['side']}"] = time.time()
             outbox.remove(item["id"])
@@ -614,6 +737,8 @@ async def _scan_one(symbol, sem, btc, eth, core_enabled=True, four_hour_enabled=
                     eth_return_6_pct=eth["return_6_pct"],
                     strategy_mode=state.get("strategy_mode", "recommended"),
                 )
+                if candidate is not None and UNIFIED_LIVE and hasattr(candidate, "to_dict"):
+                    attach_hour_context(candidate, candles.get("1h"))
                 if track_opportunities:
                     evidence = [
                         e for direction in ("LONG", "SHORT")
@@ -669,6 +794,18 @@ async def _scan_one(symbol, sem, btc, eth, core_enabled=True, four_hour_enabled=
                 try:
                     # A slow 4H history fetch cannot discard a valid 15m signal.
                     rs = await asyncio.wait_for(rs_attempt(), timeout=75)
+                    if rs is not None and UNIFIED_LIVE and hasattr(rs, "to_dict"):
+                        hourly = candles.get("1h") if candles is not None else None
+                        if hourly is None:
+                            try:
+                                hourly = await asyncio.wait_for(
+                                    client.candles(symbol, "1h"), timeout=35
+                                )
+                            except asyncio.CancelledError:
+                                raise
+                            except Exception:
+                                hourly = None
+                        attach_hour_context(rs, hourly)
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
@@ -764,8 +901,10 @@ async def run_scan(bot=None, chat_id=None):
                         last = state["cooldowns"].get(f"{signal.symbol}|{signal.side}")
                     if cooldown_active(last, settings.cooldown_minutes):
                         continue
-                    if outbox.add(signal, signal_text(signal, settings.risk_percent,
-                                                     settings.max_position_notional)):
+                    if outbox.add(signal, (unified_candle_alert(signal, price)
+                                           if UNIFIED_LIVE else
+                                           signal_text(signal, settings.risk_percent,
+                                                       settings.max_position_notional))):
                         queued += 1
                         if engine == "RS_4H":
                             rs_queued += 1
@@ -822,7 +961,7 @@ async def run_scan(bot=None, chat_id=None):
 
 async def run_coin_analysis(symbol):
     """Manual read-only dual-engine evaluation, never an alert or automatic order."""
-    if ORDERFLOW_ONLY:
+    if ORDERFLOW_ONLY and not UNIFIED_LIVE:
         active = symbol in (orderflow_status.get("symbols") or [])
         return (f"🔎 <b>{escape(symbol)}</b>\n"
                 + ("✅ Live trade/order-book feed is configured for this pair.\n" if active
@@ -946,7 +1085,7 @@ async def scan_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global manual_scan_task
     if not authorized(update):
         return await deny(update)
-    if ORDERFLOW_ONLY:
+    if ORDERFLOW_ONLY and not UNIFIED_LIVE:
         return await update.effective_message.reply_text(
             _scan_summary(), parse_mode=ParseMode.HTML, reply_markup=MAIN_MENU)
     if scan_lock.locked() or (
@@ -997,7 +1136,7 @@ async def scheduled_opportunity_report(context: ContextTypes.DEFAULT_TYPE):
 
 
 async def publish_orderflow_signal(application, signal):
-    """Send Bitget alert, then persist only confirmed Telegram delivery."""
+    """Live orderflow uses the same English plan and paper ledger as candle alerts."""
     key = f"{signal.engine_id}|{signal.symbol}|{signal.side}"
     last = state["cooldowns"].get(key)
     if last is not None and cooldown_active(last, settings.cooldown_minutes):
@@ -1005,25 +1144,19 @@ async def publish_orderflow_signal(application, signal):
     body = english_alert(signal, price)
     await application.bot.send_message(chat_id=settings.admin_id, text=body,
                                        parse_mode=ParseMode.HTML, reply_markup=MAIN_MENU)
-    # A journal failure must never cause Telegram signal delivery to be retried.
-    # This ID is a simulated paper entry, NOT an authenticated exchange fill.
-    paper_id = None
-    try:
-        paper_id = _bitget_journal().record_delivered(signal)
-    except Exception as exc:
-        log.warning("Bitget paper signal journaling failed: %s", type(exc).__name__)
-    history.append({"symbol": signal.symbol, "side": signal.side,
-                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                    "engine_id": signal.engine_id, "strategy_name": signal.strategy_name,
-                    "entry": signal.entry, "stop_loss": signal.stop_loss,
-                    "tp1": signal.tp1, "tp2": signal.tp2,
-                    "market_condition": getattr(signal, "market_condition", "CAUTIOUS"),
-                    "paper_signal_id": paper_id})
-    del history[:-300]
-    _save_history()
+    record = {
+        "symbol": signal.symbol, "side": signal.side,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "strategy_id": signal.engine_id,
+        "engine_id": signal.engine_id, "strategy_name": signal.strategy_name,
+        "entry": signal.entry, "stop_loss": signal.stop_loss,
+        "tp1": signal.tp1, "tp2": signal.tp2,
+        "market_condition": getattr(signal, "market_condition", "CAUTIOUS"),
+    }
+    _confirmed_signal_history(record, signal)
     state["cooldowns"][key] = time.time()
     _save_state()
-    log.info("Orderflow Telegram signal delivered: %s %s %s",
+    log.info("Central Bitget Telegram signal delivered: %s %s %s",
              signal.symbol, signal.engine_id, signal.side)
 
 
@@ -1068,7 +1201,7 @@ async def post_init(application: Application):
     except Exception as exc:
         log.warning("Initial market discovery failed: %s", type(exc).__name__)
     global orderflow_task
-    if ORDERFLOW_ONLY:
+    if ORDERFLOW_ONLY or UNIFIED_LIVE:
         orderflow_task = asyncio.create_task(
             run_orderflow(client, settings,
                           lambda: state.get("orderflow_mode", "both"),
@@ -1080,23 +1213,28 @@ async def post_init(application: Application):
             application.job_queue.run_repeating(refresh_bitget_paper_outcomes,
                                                 interval=900, first=180,
                                                 name="bitget_paper_outcome_refresh")
-        log.info("CVD and Wick Hunt live engines enabled; old EMA/RSI/MACD scanners OFF")
-        return
-    if application.job_queue:
+        log.info("Bitget CVD/Wick market-data engines enabled")
+        if not UNIFIED_LIVE:
+            return
+    if application.job_queue and (UNIFIED_LIVE or not ORDERFLOW_ONLY):
         # Align repeat scans with a just-closed 15m candle instead of a random
         # offset determined by Render's process boot time.
         first_boundary = (900 - int(time.time()) % 900) + 12
         application.job_queue.run_repeating(scheduled_scan, interval=settings.scan_seconds,
                                             first=first_boundary, name="market_scan")
         application.job_queue.run_once(scheduled_scan, when=30, name="startup_scan")
-        application.job_queue.run_repeating(retry_pending, interval=60,
-                                            first=60, name="retry_telegram_alerts")
+        if not (ORDERFLOW_ONLY or UNIFIED_LIVE):
+            application.job_queue.run_repeating(
+                retry_pending, interval=60, first=60, name="retry_telegram_alerts"
+            )
         application.job_queue.run_repeating(
             scheduled_opportunity_report, interval=14400, first=14400,
             name="crypto_opportunity_report"
         )
-    else:
+    elif application.job_queue is None:
         log.error("JobQueue unavailable; scheduled scans are disabled.")
+    if UNIFIED_LIVE:
+        log.info("CENTRAL BITGET LIVE: orderflow CVD/Wick + 15m core + 4H RS/Slow, shared Telegram/history/SQLite; NO ORDERS")
 
 
 async def post_shutdown(application: Application):
