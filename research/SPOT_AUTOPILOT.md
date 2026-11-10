@@ -16,9 +16,9 @@ The supplied 314-line strategy library is preserved at `research/supplied_spot_s
 | `grid` | Grid Trading | Directional | BUY lower grid zone; exit upper zone |
 | `zscore_reversion` | Z-Score Mean Reversion | Directional | BUY negative z-score; exit at mean |
 | `funding_meanrev` | Funding Mean Reversion | Overlay | Feature only; never a spot order |
-| `cvd_short` | CVD Trend-Following Short | Directional | Bearish condition exits to USDT; never short |
+| `cvd_short` | CVD Trend-Following Short | Exit-only | Bearish condition exits to USDT; no standalone short backtest |
 | `basis_trade` | Spot/Perpetual Basis | Overlay | Feature only; no futures leg |
-| `donchian_ema_short` | Donchian Breakdown / EMA Short | Directional | Bearish condition exits to USDT; never short |
+| `donchian_ema_short` | Donchian Breakdown / EMA Short | Exit-only | Bearish condition exits to USDT; no standalone short backtest |
 | `stablecoin_lockout` | Stablecoin Lockout | Filter | Blocks entries and emits an exit-to-USDT cue in chop |
 | `funding_meanrev_chop` | Funding Mean Reversion in Chop | Overlay | Feature only; never a spot order |
 | `compression_breakout` | Volatility Compression Breakout | Directional | BUY upside break; downside break exits to USDT |
