@@ -28,6 +28,8 @@ class Signal:
     htf_trends: str = ""
     macro_trends: str = ""
     strategy_name: str = ""
+    market_condition: str = "CAUTIOUS"
+    closed_1h: tuple = ()
 
     def to_dict(self):
         return asdict(self)
