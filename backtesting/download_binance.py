@@ -156,23 +156,40 @@ def main():
                     import shutil
                     shutil.rmtree(staging)
                 staging.mkdir(parents=True)
+                successful_timeframes = []
                 for tf in TIMEFRAMES:
-                    frame = fetch_history(ex, symbol, tf, a.days, a.min_history_days)
-                    frame.to_csv(staging / f"{tf}.csv", index=False)
-                    delta = pd.DatetimeIndex(frame.timestamp).asi8
-                    step = int(ex.parse_timeframe(tf) * 1_000_000_000)
-                    gaps = int((delta[1:] - delta[:-1] != step).sum())
-                    result["timeframes"][tf] = {"candles": len(frame), "gap_count": gaps,
-                        "first_timestamp": str(frame.timestamp.iloc[0]),
-                        "last_timestamp": str(frame.timestamp.iloc[-1]),
-                        "actual_history_days": frame.attrs.get("actual_history_days")}
+                    try:
+                        frame = fetch_history(ex, symbol, tf, a.days, a.min_history_days)
+                        frame.to_csv(staging / f"{tf}.csv", index=False)
+                        delta = pd.DatetimeIndex(frame.timestamp).asi8
+                        step = int(ex.parse_timeframe(tf) * 1_000_000_000)
+                        gaps = int((delta[1:] - delta[:-1] != step).sum())
+                        result["timeframes"][tf] = {"status": "VALID", "candles": len(frame),
+                            "gap_count": gaps, "first_timestamp": str(frame.timestamp.iloc[0]),
+                            "last_timestamp": str(frame.timestamp.iloc[-1]),
+                            "actual_history_days": frame.attrs.get("actual_history_days")}
+                        successful_timeframes.append(tf)
+                    except Exception as exc:
+                        result["timeframes"][tf] = {
+                            "status": "DATA INSUFFICIENT",
+                            "reason": f"{type(exc).__name__}: {exc}",
+                        }
+                        print(f"DATA INSUFFICIENT {symbol} {tf}: {exc}")
+                if not successful_timeframes:
+                    raise RuntimeError("no timeframe met the declared history/freshness floor")
                 if folder.exists():
                     import shutil
                     shutil.rmtree(folder)
                 staging.rename(folder)
+                result["status"] = ("VALID" if len(successful_timeframes) == len(TIMEFRAMES)
+                                    else "PARTIAL")
+                result["successful_timeframes"] = successful_timeframes
                 manifest["downloaded"].append(result)
-                print(f"VALIDATED {symbol}")
+                print(f"{result['status']} {symbol}: {successful_timeframes}")
             except Exception as exc:
+                if staging.exists():
+                    import shutil
+                    shutil.rmtree(staging, ignore_errors=True)
                 manifest["failed"].append({"symbol": symbol, "error": f"{type(exc).__name__}: {exc}"})
                 print(f"DATA INSUFFICIENT {symbol}: {exc}")
         manifest["eligible_count"] = len(manifest["downloaded"])
