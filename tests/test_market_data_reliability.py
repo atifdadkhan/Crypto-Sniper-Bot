@@ -29,9 +29,13 @@ def make_candles(interval=900_000, count=140, price=100):
             for i in range(count)]
 
 
-def test_single_missing_candle_is_not_silently_accepted():
+def test_single_missing_candle_is_not_silently_accepted(monkeypatch):
     bot = MarketData()
     rows = make_candles()
+    # Freeze the clock 10s after the latest candle boundary so the
+    # provider's 5s close-safety buffer cannot make this test timing-flaky.
+    safe_now = (rows[-1][0] + 10_000) / 1000
+    monkeypatch.setattr("exchange.time.time", lambda: safe_now)
     bot.exchange = FakeExchange(rows)
     clean = asyncio.run(bot.candles("TEST/USDT:USDT", "15m"))
     assert len(clean) == len(rows) - 1
