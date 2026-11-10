@@ -46,15 +46,19 @@ def trade_plan(signal):
     if side == "SHORT" and not (stop > entry > tp1 >= tp2):
         raise ValueError("Invalid SHORT levels")
     strong = getattr(signal, "market_condition", "CAUTIOUS") == "STRONG"
+    # A 4H strategy can legitimately expose ONE 3R target as both tp1 and tp2.
+    # Do NOT invent a second target or moonshot allocation in that case.
+    split_targets = abs(tp2 - tp1) > entry * 1e-9
+    moonshot = bool(strong and split_targets)
     width = min(entry * 0.001, risk * 0.15)
     return {
         "condition": "STRONG" if strong else "CAUTIOUS",
         "entry": entry, "entry_low": entry - width, "entry_high": entry + width,
-        "stop_loss": stop, "tp1": tp1, "tp2": tp2 if strong else None,
-        "moonshot": bool(strong), "risk_distance": risk,
-        "side": side, "tp1_fraction": 0.5 if strong else 1.0,
-        "tp2_fraction": 0.3 if strong else 0.0,
-        "moonshot_fraction": 0.2 if strong else 0.0,
+        "stop_loss": stop, "tp1": tp1, "tp2": tp2 if moonshot else None,
+        "moonshot": moonshot, "risk_distance": risk,
+        "side": side, "tp1_fraction": 0.5 if moonshot else 1.0,
+        "tp2_fraction": 0.3 if moonshot else 0.0,
+        "moonshot_fraction": 0.2 if moonshot else 0.0,
         "round_trip_cost_pct": ROUND_TRIP_COST_PCT,
         "paper_only": True,
     }
@@ -83,7 +87,9 @@ def english_alert(signal, fmt):
         ])
     else:
         lines.extend([
-            "🏆 TP2: OFF — cautious market",
+            ("🏆 TP2: OFF — single-target strategy"
+             if plan["condition"] == "STRONG" else
+             "🏆 TP2: OFF — cautious market"),
             "🚀 Moonshot: OFF — close at TP1",
             "📈 Paper exit plan: TP1 100%",
         ])
