@@ -12,6 +12,8 @@ from pathlib import Path
 import ccxt
 import pandas as pd
 
+from backtesting.download_bitget import is_excluded_non_crypto_base
+
 TIMEFRAMES = ("15m", "1h", "4h", "1d")
 DAY_MS = 86_400_000
 LIMIT = 1000
@@ -42,6 +44,8 @@ def discover(exchange, kind, min_quote_volume):
         else:
             if not market.get("swap") or market.get("linear") is not True or market.get("settle") != "USDT":
                 continue
+        if is_excluded_non_crypto_base(market.get("base"), market=market):
+            continue
         ticker = tickers.get(symbol) or {}
         quote_volume = ticker.get("quoteVolume")
         try:
