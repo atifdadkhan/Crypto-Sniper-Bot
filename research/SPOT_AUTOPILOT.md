@@ -90,3 +90,7 @@ Outputs:
 ## Execution boundary
 
 "Autopilot" here means autonomous market discovery, data collection, validation, analysis, backtesting, ranking and signal-file generation. It does **not** mean automatic buying/selling. No exchange private keys, order endpoints, order placement, short selling, leverage or futures execution are part of this pipeline.
+
+### Source-rule audit note
+
+The supplied C-C2 `funding_meanrev_chop` function currently thresholds funding z-score and emits a 0.25 size multiplier; it does not itself gate the signal on CHOP. The adapter exposes CHOP regime as a separate context feature and does not silently change the source rule. This overlay remains non-executable.
