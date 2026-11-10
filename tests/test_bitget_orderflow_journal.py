@@ -57,7 +57,7 @@ def test_strong_plan_two_targets_and_moonshot():
 
 def test_plain_language_alert_is_bold_colorful_and_side_aware():
     body = english_alert(signal(side="SHORT", condition="STRONG"), str)
-    assert "🚨 <b>BITGET SIGNAL</b>" in body
+    assert "🚨 <b>BITGET FUTURES SIGNAL</b>" in body
     assert "<b>BTC</b>" in body
     assert "🔴" in body and "SELL / SHORT" in body
     assert "Strong downward move supports this SELL" in body
