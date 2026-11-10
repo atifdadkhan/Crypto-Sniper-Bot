@@ -39,6 +39,8 @@ class SlowMomentumSignal:
     ttl_seconds: int = MAX_SIGNAL_DELAY_SECONDS
     counter_macro: bool = False
     hold_review_days: int = 10
+    market_condition: str = "CAUTIOUS"
+    closed_1h: tuple = ()
 
     def to_dict(self):
         return asdict(self)
