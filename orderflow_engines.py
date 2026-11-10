@@ -22,6 +22,8 @@ class OrderflowSignal:
     timestamp: int
     score: int
     reason: str
+    market_condition: str = "CAUTIOUS"
+    closed_1h: tuple = ()
 
 
 class Tape:
@@ -44,6 +46,8 @@ class Tape:
         self.sweep_above = False
         self.sweep_below = False
         self.last_alert = {}
+        self.closed_1h = ()
+        self.trend_closes = ()
 
     def reset_flow(self):
         """Discard incomplete CVD after a socket gap; warm up before signals."""
@@ -135,6 +139,19 @@ class Tape:
             self.swing_high, self.swing_low = high, low
             self.swing_refreshed = now
             self.sweep_above = self.sweep_below = False
+            # The exchange adapter supplies only confirmed closed 1h OHLCV bars.
+            # Snapshot them now, so future candle revisions cannot rewrite history.
+            try:
+                rows = tuple(tuple(int(v) if i == 0 else float(v)
+                                   for i, v in enumerate(row))
+                             for row in bars[["timestamp", "open", "high", "low", "close", "volume"]]
+                                  .tail(40).itertuples(index=False, name=None))
+                if len(rows) >= 20:
+                    self.closed_1h = rows
+                    self.trend_closes = tuple(row[4] for row in rows)
+            except (KeyError, ValueError, TypeError):
+                self.closed_1h = ()
+                self.trend_closes = ()
 
     def market_ok(self, now=None):
         now = time.monotonic() if now is None else now
@@ -178,10 +195,22 @@ class Tape:
         if now - self.last_alert.get(engine + side, -1e9) < 1800:
             return None
         self.last_alert[engine + side] = now
+        condition = "CAUTIOUS"
+        if now - self.swing_refreshed <= 4200 and len(self.trend_closes) >= 20:
+            recent = self.trend_closes
+            average_20 = sum(recent[-20:]) / 20.0
+            momentum = recent[-1] - recent[-9]
+            # Strong only when the preceding CLOSED 1h trend agrees with trade side.
+            aligned = ((recent[-1] > average_20 and momentum > 0)
+                       if side == "LONG" else
+                       (recent[-1] < average_20 and momentum < 0))
+            if aligned:
+                condition = "STRONG"
         return OrderflowSignal(
             self.symbol, engine, name, side, entry, stop,
             entry + (distance if side == "LONG" else -distance),
-            target, self.last_trade_ts, 8, reason)
+            target, self.last_trade_ts, 8, reason,
+            condition, self.closed_1h)
 
     def cvd_divergence(self, now=None):
         """Price HH with CVD LL / price LL with CVD HH on two separated windows.
