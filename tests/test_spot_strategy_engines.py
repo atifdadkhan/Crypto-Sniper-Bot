@@ -60,10 +60,17 @@ def test_missing_special_data_fails_closed(sid,column):
 
 
 def test_short_conditions_map_to_exit_to_usdt_not_short_position():
-    out=evaluate_strategy(sample_frame(),"donchian_ema_short")
+    n=600
+    close=1000-0.5*np.arange(n)
+    op=np.r_[close[0],close[:-1]]
+    frame=pd.DataFrame({"timestamp":pd.date_range("2025-01-01",periods=n,freq="15min",tz="UTC"),
+        "open":op,"high":np.maximum(op,close)+0.1,"low":np.minimum(op,close)-0.1,
+        "close":close,"volume":np.full(n,500.0)})
+    out=evaluate_strategy(frame,"donchian_ema_short")
     assert set(out.position.unique()).issubset({0,1})
     assert not out.position.eq(-1).any()
-    assert out.entry_short.any() or out.exit_short.any()
+    assert out.entry_short.any()
+    assert out.action.eq("EXIT_TO_USDT").any()
 
 
 def test_a_b_c_are_variants_of_one_engine_not_three_engines():
