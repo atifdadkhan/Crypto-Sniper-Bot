@@ -33,7 +33,7 @@ def aggregate(input_dir, output_dir, minimum_oos_trades=30):
     combined,trade_parts,signal_rows,status_parts=[],[],[]
     seen=set(); duplicate_symbols=[]; batch_names=[]
     for summary_path in summaries:
-        batch_name=summary_path.parent.parent.parent.parent.name
+        batch_name=summary_path.parents[2].name
         batch_names.append(batch_name)
         part=json.loads(summary_path.read_text(encoding="utf-8"))
         keep=set()
@@ -48,7 +48,7 @@ def aggregate(input_dir, output_dir, minimum_oos_trades=30):
             if not trades.empty and "symbol" in trades:
                 trades=trades[trades.symbol.astype(str).isin(keep)]
                 if not trades.empty: trade_parts.append(trades)
-        artifact_root=summary_path.parent.parent.parent.parent
+        artifact_root=summary_path.parents[2]
         signal_path=artifact_root/"signal_results/spot_signals.json"
         if signal_path.is_file():
             try:
