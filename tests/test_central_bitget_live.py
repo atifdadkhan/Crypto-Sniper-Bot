@@ -101,6 +101,12 @@ def test_4h_signal_is_single_original_target_not_invented_multiple_targets():
     alert = __import__("bitget_orderflow_journal").english_alert(s, str)
     assert "4H Relative Strength Breakout" in alert
     assert "TP1: <code>91" in alert and "TP2: OFF" in alert
+    record["market_condition"] = "STRONG"
+    strong_single = normalized_candle_signal(record, int(time.time() * 1000))
+    single = __import__("bitget_orderflow_journal").trade_plan(strong_single)
+    assert single["condition"] == "STRONG"
+    assert not single["moonshot"] and single["tp1_fraction"] == 1.0
+    assert single["tp2"] is None
 
 
 def test_telegram_confirmed_candle_delivery_writes_shared_journal(monkeypatch, tmp_path):
