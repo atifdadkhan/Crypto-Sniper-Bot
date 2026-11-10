@@ -102,8 +102,8 @@ def english_alert(signal, fmt):
             "off because the market is not strong enough"
         )
         lines.extend([
-            f"🏆 <b>TP2:</b> Off — {tp2_reason}.",
-            "🚀 <b>Moonshot:</b> Off — planned exit is at TP1.",
+            f"🏆 <b>TP2: OFF</b> — {tp2_reason}.",
+            "🚀 <b>Moonshot: OFF</b> — planned exit is at TP1.",
         ])
     lines.extend([
         f"🛑 <b>Stop Loss:</b> <code>{f(plan['stop_loss'])}</code> USDT",
