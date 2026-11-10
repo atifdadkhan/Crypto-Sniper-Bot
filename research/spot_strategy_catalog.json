@@ -13,9 +13,9 @@
     {"id":"grid","name":"Grid Trading","type":"directional_spot","spot_tradeable":true,"required_features":["OHLCV"],"missing_data_policy":"DATA INSUFFICIENT"},
     {"id":"zscore_reversion","name":"Z-Score Statistical Reversion","type":"directional_spot","spot_tradeable":true,"required_features":["OHLCV"],"missing_data_policy":"DATA INSUFFICIENT"},
     {"id":"funding_meanrev","name":"Funding Rate Mean Reversion","type":"overlay","spot_tradeable":false,"required_features":["timestamped_funding_rate"],"missing_data_policy":"DATA INSUFFICIENT"},
-    {"id":"cvd_short","name":"CVD Trend-Following Short","type":"directional_spot","spot_tradeable":true,"required_features":["OHLCV","CVD","open_interest"],"bearish_action":"EXIT_TO_USDT","missing_data_policy":"DATA INSUFFICIENT"},
+    {"id":"cvd_short","name":"CVD Trend-Following Short","type":"exit_only","spot_tradeable":true,"required_features":["OHLCV","CVD","open_interest"],"bearish_action":"EXIT_TO_USDT","missing_data_policy":"DATA INSUFFICIENT"},
     {"id":"basis_trade","name":"Spot/Perpetual Basis","type":"overlay","spot_tradeable":false,"required_features":["spot_price","futures_price","expiry_days"],"missing_data_policy":"DATA INSUFFICIENT"},
-    {"id":"donchian_ema_short","name":"Donchian Breakdown / EMA Short","type":"directional_spot","spot_tradeable":true,"required_features":["OHLCV"],"bearish_action":"EXIT_TO_USDT","missing_data_policy":"DATA INSUFFICIENT"},
+    {"id":"donchian_ema_short","name":"Donchian Breakdown / EMA Short","type":"exit_only","spot_tradeable":true,"required_features":["OHLCV"],"bearish_action":"EXIT_TO_USDT","missing_data_policy":"DATA INSUFFICIENT"},
     {"id":"stablecoin_lockout","name":"Stablecoin Lockout","type":"filter","spot_tradeable":true,"required_features":["OHLCV"],"bearish_action":"EXIT_TO_USDT"},
     {"id":"funding_meanrev_chop","name":"Funding Mean Reversion in Chop","type":"overlay","spot_tradeable":false,"required_features":["OHLCV","timestamped_funding_rate"],"missing_data_policy":"DATA INSUFFICIENT"},
     {"id":"compression_breakout","name":"Volatility Compression Breakout","type":"directional_spot","spot_tradeable":true,"required_features":["OHLCV","open_interest"],"missing_data_policy":"DATA INSUFFICIENT"}
