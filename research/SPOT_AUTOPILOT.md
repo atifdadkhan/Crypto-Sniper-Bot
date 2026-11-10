@@ -71,7 +71,7 @@ python -m backtesting.spot_strategy_runner --data-dir data --output-dir backtest
 Generate the latest completed-candle signals for every validated coin in the local data folder:
 
 ```powershell
-python scripts/spot_signal_scan.py --data-dir data --output-dir signal_results --timeframes 15m,1h,4h,1d
+python -m scripts.spot_signal_scan --data-dir data --output-dir signal_results --timeframes 15m,1h,4h,1d
 ```
 
 Outputs:
@@ -94,3 +94,19 @@ Outputs:
 ### Source-rule audit note
 
 The supplied C-C2 `funding_meanrev_chop` function currently thresholds funding z-score and emits a 0.25 size multiplier; it does not itself gate the signal on CHOP. The adapter exposes CHOP regime as a separate context feature and does not silently change the source rule. This overlay remains non-executable.
+
+## English trade messages and persistent outcome history
+
+The spot scanner generates `signal_results/spot_signals_english.txt` and includes each formatted English message under `english_message` in the signal JSON. BUY messages show the strategy, Entry Price Range, TP1, TP2 (only if STRONG), Moonshot trailing instructions (only if STRONG), Stop Loss, and a brief plan. EXIT_TO_USDT signals say SELL / EXIT, never SHORT.
+
+`spot_signal_journal.py` stores the original 40 pre-signal OHLCV candles, each deduplicated signal and transition event, entry/exit candle snapshots, and a paper-outcome record in SQLite. Each scan rechecks new completed candles for the coin/timeframe. Trade status can progress from PENDING_ENTRY to OPEN_PAPER, TP1_PARTIAL, MOONSHOT_PAPER or CLOSED; unfilled entries can EXPIRE/CANCEL. Conservative stop-first order is used for overlapping target/stop candle ranges. Strong setups use paper fractions of 50% TP1 / 30% TP2 / 20% Moonshot, if conditions remain strong. Weak/cautious setups exit at TP1 only.
+
+**Persistent local PowerShell command (run from the Crypto Sniper project root):**
+
+```powershell
+python -m scripts.spot_signal_scan --data-dir data --output-dir signal_results --journal-db '.\state\spot_trade_journal.sqlite3' --timeframes 15m,1h,4h,1d
+```
+
+Never delete or recreate the `state` folder between scans. The journal database is `state/spot_trade_journal.sqlite3` and a CSV snapshot is created in `signal_results/spot_trade_journal.csv`. The event history is in the SQLite `signal_events` table and contains the candle that caused each transition. Signals are keyed by symbol, timeframe, strategy, action and candle timestamp, so rerunning a scan does not duplicate a signal.
+
+**Important limitations:** These are conservative OHLCV-based *paper signal outcomes*, not actual executed-account trades or verified P&L. Exchange fills and exact fees must be connected separately for actual P&L. The scanner creates local text/JSON/CSV files; it does not itself deliver Telegram messages or place orders. The GitHub Actions runner is ephemeral, with 90-day artifact retention, so it cannot be relied on as a permanent ledger across scheduled runs. Keep the journal on local persistent storage, or attach a permanent external database. Preserve losing trades and candle snapshots, and use chronological out-of-sample evaluation before changing any strategy.
