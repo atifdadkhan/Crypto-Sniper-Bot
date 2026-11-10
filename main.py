@@ -127,7 +127,17 @@ SETTINGS_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("🎯 Signal Style", callback_data="menu:strategy"),
      InlineKeyboardButton("⬅️ Back to Menu", callback_data="menu:home")]
 ])
-ORDERFLOW_STRATEGY_MENU = InlineKeyboardMarkup([
+ORDERFLOW_CENTRAL_STRATEGY_MENU = InlineKeyboardMarkup([
+    [InlineKeyboardButton("⭐ Both Orderflow Engines", callback_data="ofmode:both")],
+    [InlineKeyboardButton("📉 CVD Divergence", callback_data="ofmode:cvd"),
+     InlineKeyboardButton("💧 Wick Hunt", callback_data="ofmode:wick")],
+    [InlineKeyboardButton("🧠 15m Best Match", callback_data="mode:recommended")],
+    [InlineKeyboardButton("🚀 15m Breakout", callback_data="mode:breakout"),
+     InlineKeyboardButton("📈 15m EMA", callback_data="mode:ema")],
+    [InlineKeyboardButton("🛡️ 15m Extra Check", callback_data="mode:rsi_macd")],
+    [InlineKeyboardButton("⬅️ Back to Menu", callback_data="menu:home")],
+])
+STRATEGY_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("⭐ Both Orderflow Engines", callback_data="ofmode:both")],
     [InlineKeyboardButton("📉 CVD Divergence", callback_data="ofmode:cvd")],
     [InlineKeyboardButton("💧 Liquidity Wick Hunt", callback_data="ofmode:wick")],
@@ -153,6 +163,7 @@ def _strategy_text():
                 "💧 Wick Hunt: 1H stop sweep, 3:1 L2 imbalance, VWAP reversion.\n"
                 + ("<b>Central Bitget mode:</b> 15m Pullback/Breakout and "
                    "4H Relative Strength/Slow Momentum are ALSO running.\n"
+                   f"15m style: {escape(MODE_LABELS[valid_mode(state['strategy_mode'])])}.\n"
                    if UNIFIED_LIVE else
                    "The 15m/4H scheduled scanners are disabled.\n")
                 + "Signals only; no authenticated order execution.")
@@ -480,18 +491,22 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if requested in ("both", "cvd", "wick"):
             state["orderflow_mode"] = requested
             _save_state()
-        return await _panel(query, "✅ Orderflow engines updated.\n\n" + _strategy_text(), ORDERFLOW_STRATEGY_MENU)
+        return await _panel(query, "✅ Orderflow engines updated.\n\n" + _strategy_text(),
+                            CENTRAL_STRATEGY_MENU if UNIFIED_LIVE else ORDERFLOW_STRATEGY_MENU)
     if ORDERFLOW_ONLY and not UNIFIED_LIVE and (query.data or "").startswith("mode:"):
         return await _panel(query, _strategy_text(), ORDERFLOW_STRATEGY_MENU)
     if (query.data or "").startswith("mode:"):
         requested = (query.data or "").partition(":")[2]
         if requested not in MODE_LABELS:
-            return await _panel(query, "⚠️ Unknown signal style.", STRATEGY_MENU)
+            return await _panel(query, "⚠️ Unknown signal style.",
+                                CENTRAL_STRATEGY_MENU if UNIFIED_LIVE else STRATEGY_MENU)
         if scan_lock.locked():
-            return await _panel(query, "⏳ Scan running. Change the style after it finishes.", STRATEGY_MENU)
+            return await _panel(query, "⏳ Scan running. Change the style after it finishes.",
+                                CENTRAL_STRATEGY_MENU if UNIFIED_LIVE else STRATEGY_MENU)
         state["strategy_mode"] = requested
         _save_state()
-        return await _panel(query, "✅ Style updated.\n\n" + _strategy_text(), STRATEGY_MENU)
+        return await _panel(query, "✅ Style updated.\n\n" + _strategy_text(),
+                            CENTRAL_STRATEGY_MENU if UNIFIED_LIVE else STRATEGY_MENU)
     action = (query.data or "").partition(":")[2]
     if action != "analyze":
         context.user_data.pop("awaiting_coin", None)
@@ -513,7 +528,8 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await _panel(query, help_text(), BACK_MENU)
     if action == "strategy":
         return await _panel(query, _strategy_text(),
-                            ORDERFLOW_STRATEGY_MENU if ORDERFLOW_ONLY else STRATEGY_MENU)
+                            CENTRAL_STRATEGY_MENU if UNIFIED_LIVE else
+                             (ORDERFLOW_STRATEGY_MENU if ORDERFLOW_ONLY else STRATEGY_MENU))
     if action == "settings":
         return await _panel(query, _settings_text(), SETTINGS_MENU)
     if action == "status":
@@ -610,11 +626,24 @@ async def _deliver_pending(bot, chat_id, limit=5):
             # A crash between send and persist may produce one duplicate after restart.
             item_data = dict(item["signal"])
             if UNIFIED_LIVE:
-                converted = normalized_candle_signal(
-                    item_data, int(time.time() * 1000), source_key=item["id"]
-                )
-                item_data["engine_id"] = converted.engine_id
-                _confirmed_signal_history(item_data, converted, delivery_id=item["id"])
+                try:
+                    converted = normalized_candle_signal(
+                        item_data, int(time.time() * 1000), source_key=item["id"]
+                    )
+                    item_data["engine_id"] = converted.engine_id
+                    _confirmed_signal_history(item_data, converted, delivery_id=item["id"])
+                except Exception as exc:
+                    # Telegram already acknowledged the send. Never re-send
+                    # solely because journal normalization failed.
+                    log.warning("Central Bitget candle journal conversion failed: %s",
+                                type(exc).__name__)
+                    item_data["delivery_id"] = item["id"]
+                    item_data["paper_signal_id"] = None
+                    item_data.pop("closed_1h", None)
+                    if not any(x.get("delivery_id") == item["id"] for x in history):
+                        history.append(item_data)
+                        del history[:-300]
+                        _save_history()
             else:
                 item_data["delivery_id"] = item["id"]
                 if not any(x.get("delivery_id") == item["id"] for x in history):
@@ -1176,8 +1205,10 @@ async def post_init(application: Application):
         application.job_queue.run_repeating(scheduled_scan, interval=settings.scan_seconds,
                                             first=first_boundary, name="market_scan")
         application.job_queue.run_once(scheduled_scan, when=30, name="startup_scan")
-        application.job_queue.run_repeating(retry_pending, interval=60,
-                                            first=60, name="retry_telegram_alerts")
+        if not (ORDERFLOW_ONLY or UNIFIED_LIVE):
+            application.job_queue.run_repeating(
+                retry_pending, interval=60, first=60, name="retry_telegram_alerts"
+            )
         application.job_queue.run_repeating(
             scheduled_opportunity_report, interval=14400, first=14400,
             name="crypto_opportunity_report"
