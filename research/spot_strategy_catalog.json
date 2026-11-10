@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "name": "Crypto Sniper Spot Strategy Library",
+  "market_scope": "Binance active Spot USDT crypto markets",
+  "execution_policy": "signals_only_spot_buy_or_exit_to_usdt_no_short_selling_no_leverage_no_futures_orders",
+  "source_file": "research/supplied_spot_strategy_library.py",
+  "adapter_file": "spot_strategy_engines.py",
+  "variant_policy": "A is the strict baseline; B and C are output adapters, not additional strategy engines.",
+  "strategies": [
+    {"id":"donchian_oi","name":"Donchian Breakout + OI","type":"directional_spot","spot_tradeable":true,"required_features":["OHLCV","open_interest"],"missing_data_policy":"DATA INSUFFICIENT"},
+    {"id":"keltner_trend","name":"Keltner Channel Trend","type":"directional_spot","spot_tradeable":true,"required_features":["OHLCV"],"missing_data_policy":"DATA INSUFFICIENT"},
+    {"id":"funding_arb","name":"Funding Rate Arbitrage","type":"overlay","spot_tradeable":false,"required_features":["timestamped_funding_rate"],"missing_data_policy":"DATA INSUFFICIENT"},
+    {"id":"grid","name":"Grid Trading","type":"directional_spot","spot_tradeable":true,"required_features":["OHLCV"],"missing_data_policy":"DATA INSUFFICIENT"},
+    {"id":"zscore_reversion","name":"Z-Score Statistical Reversion","type":"directional_spot","spot_tradeable":true,"required_features":["OHLCV"],"missing_data_policy":"DATA INSUFFICIENT"},
+    {"id":"funding_meanrev","name":"Funding Rate Mean Reversion","type":"overlay","spot_tradeable":false,"required_features":["timestamped_funding_rate"],"missing_data_policy":"DATA INSUFFICIENT"},
+    {"id":"cvd_short","name":"CVD Trend-Following Short","type":"exit_only","spot_tradeable":true,"required_features":["OHLCV","CVD","open_interest"],"bearish_action":"EXIT_TO_USDT","missing_data_policy":"DATA INSUFFICIENT"},
+    {"id":"basis_trade","name":"Spot/Perpetual Basis","type":"overlay","spot_tradeable":false,"required_features":["spot_price","futures_price","expiry_days"],"missing_data_policy":"DATA INSUFFICIENT"},
+    {"id":"donchian_ema_short","name":"Donchian Breakdown / EMA Short","type":"exit_only","spot_tradeable":true,"required_features":["OHLCV"],"bearish_action":"EXIT_TO_USDT","missing_data_policy":"DATA INSUFFICIENT"},
+    {"id":"stablecoin_lockout","name":"Stablecoin Lockout","type":"filter","spot_tradeable":true,"required_features":["OHLCV"],"bearish_action":"EXIT_TO_USDT"},
+    {"id":"funding_meanrev_chop","name":"Funding Mean Reversion in Chop","type":"overlay","spot_tradeable":false,"required_features":["OHLCV","timestamped_funding_rate"],"missing_data_policy":"DATA INSUFFICIENT"},
+    {"id":"compression_breakout","name":"Volatility Compression Breakout","type":"directional_spot","spot_tradeable":true,"required_features":["OHLCV","open_interest"],"missing_data_policy":"DATA INSUFFICIENT"}
+  ],
+  "research_controls": {
+    "completed_candles_only": true,
+    "entry_and_signal_exit_model": "next_candle_open",
+    "spot_positions_only": true,
+    "bearish_short_conditions": "exit_to_usdt_or_avoid_only",
+    "historical_funding_required": true,
+    "missing_oi_cvd_funding_or_basis": "DATA INSUFFICIENT",
+    "chronological_split": "60_percent_in_sample_40_percent_out_of_sample_per_contiguous_segment",
+    "fees_and_slippage": "combined_round_trip_assumption_included",
+    "ambiguous_stop_target_same_candle": "stop_first",
+    "minimum_oos_trades_for_screening": 30,
+    "global_screening_minimum_markets": 5,
+    "production_approval": "untouched_walk_forward_and_paper_trading_required",
+    "automatic_live_order_placement": false
+  }
+}

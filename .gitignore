@@ -1,0 +1,19 @@
+# Never commit API keys, Telegram tokens or private configuration
+.env
+.env.*
+!.env.example
+!.env.template
+
+# Local Windows and Python environments
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Persistent local signal journals and generated reports
+/state/
+/signal_results/
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
