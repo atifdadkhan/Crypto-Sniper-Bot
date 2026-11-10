@@ -71,15 +71,21 @@ def _assemble(df, eL, xL, eS, xS, strength,
     xL = xL.fillna(False) if xL is not None else pd.Series(False, index=df.index)
     eS = eS.fillna(False) if eS is not None else pd.Series(False, index=df.index)
     xS = xS.fillna(False) if xS is not None else pd.Series(False, index=df.index)
-    pos = pd.Series(0, index=df.index)
+    # Preserve the original state-machine semantics without repeated pandas iloc writes.
+    eL_values, xL_values = eL.to_numpy(dtype=bool), xL.to_numpy(dtype=bool)
+    eS_values, xS_values = eS.to_numpy(dtype=bool), xS.to_numpy(dtype=bool)
+    positions = np.zeros(len(df), dtype=np.int8)
+    state = 0
     for i in range(len(df)):
-        p = pos.iloc[i-1] if i > 0 else 0
-        if p == 0:
-            if eL.iloc[i]: p = 1
-            elif eS.iloc[i]: p = -1
-        elif p == 1 and xL.iloc[i]: p = 0
-        elif p == -1 and xS.iloc[i]: p = 0
-        pos.iloc[i] = p
+        if state == 0:
+            if eL_values[i]: state = 1
+            elif eS_values[i]: state = -1
+        elif state == 1 and xL_values[i]:
+            state = 0
+        elif state == -1 and xS_values[i]:
+            state = 0
+        positions[i] = state
+    pos = pd.Series(positions, index=df.index)
     out = df.copy()
     out['entry_long'], out['exit_long'] = eL.astype(bool), xL.astype(bool)
     out['entry_short'], out['exit_short'] = eS.astype(bool), xS.astype(bool)
