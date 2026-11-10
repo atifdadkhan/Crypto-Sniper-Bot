@@ -58,8 +58,8 @@ jobs:
       - name: Discover the current eligible Binance Spot USDT universe
         id: matrix
         env:
-          BATCH_SIZE: ${{ inputs.batch_size || '10' }}
-          MIN_QUOTE_VOLUME: ${{ inputs.min_quote_volume || '500000' }}
+          BATCH_SIZE: ${{ github.event.inputs.batch_size || '10' }}
+          MIN_QUOTE_VOLUME: ${{ github.event.inputs.min_quote_volume || '500000' }}
         run: |
           python - <<'PY'
           import json, os
@@ -76,7 +76,7 @@ jobs:
                   for i, batch in enumerate(batches)
               ]}
               with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
-                  out.write("spot_matrix=" + json.dumps(matrix) + "\\n")
+                  out.write("spot_matrix=" + json.dumps(matrix) + "\n")
               print("Eligible spot markets:", len(universe))
               print("Independent download batches:", len(batches))
           finally:
@@ -85,13 +85,13 @@ jobs:
 
   spot_batches:
     needs: discover
-    if: ${{ fromJson(needs.discover.outputs.spot_matrix).include[0] != null }}
+    if: ${{ fromJSON(needs.discover.outputs.spot_matrix).include[0] != null }}
     runs-on: ubuntu-latest
     timeout-minutes: 330
     strategy:
       fail-fast: false
       max-parallel: 4
-      matrix: ${{ fromJson(needs.discover.outputs.spot_matrix) }}
+      matrix: ${{ fromJSON(needs.discover.outputs.spot_matrix) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -103,8 +103,8 @@ jobs:
       - name: Download this spot batch with per-coin history coverage
         env:
           SYMBOLS_JSON: ${{ toJson(matrix.symbols) }}
-          DAYS: ${{ inputs.days || '365' }}
-          MIN_HISTORY_DAYS: ${{ inputs.min_history_days || '7' }}
+          DAYS: ${{ github.event.inputs.days || '365' }}
+          MIN_HISTORY_DAYS: ${{ github.event.inputs.min_history_days || '7' }}
         run: |
           python - <<'PY'
           import json, os, subprocess, sys
@@ -127,7 +127,7 @@ jobs:
           python -m backtesting.spot_strategy_runner \
             --data-dir data \
             --output-dir backtest_results/spot_strategy_engines \
-            --fee-slippage-pct "${{ inputs.fee_slippage_pct || '0.12' }}" \
+            --fee-slippage-pct "${{ github.event.inputs.fee_slippage_pct || '0.12' }}" \
             --minimum-oos-trades 30
       - name: Generate latest completed-candle spot signals
         run: |
