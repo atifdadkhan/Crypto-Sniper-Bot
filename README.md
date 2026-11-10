@@ -96,3 +96,8 @@ verify Render readiness and polling uniqueness. Then forward paper-test
 at least 14 days and evaluate realistic spread, fees, slippage, funding,
 out-of-sample expectancy, profit factor, and drawdown. Research results
 are not live strategy approval.
+
+
+## Spot Strategy Autopilot (separate research pipeline)
+
+Crypto Sniper also contains a separate Binance Spot research pipeline for the 12 supplied strategy families. It keeps spot BUY/EXIT_TO_USDT semantics, evaluates each coin independently, and never submits exchange orders. See [Spot Autopilot documentation](research/SPOT_AUTOPILOT.md), [12-engine catalogue](research/spot_strategy_catalog.json), and the scheduled [Spot Autopilot workflow](.github/workflows/crypto_sniper_spot_autopilot.yml).
