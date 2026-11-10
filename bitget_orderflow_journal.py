@@ -133,8 +133,9 @@ class BitgetPaperJournal:
         """Call ONLY after Telegram confirms delivery; never claim an exchange fill."""
         plan = trade_plan(signal)
         stamp = int(signal.timestamp)
+        stable_key = getattr(signal, "signal_key", None) or stamp
         sid = hashlib.sha256(
-            f"bitget|{signal.symbol}|{signal.engine_id}|{signal.side}|{stamp}".encode()
+            f"bitget|{signal.symbol}|{signal.engine_id}|{signal.side}|{stable_key}".encode()
         ).hexdigest()[:32]
         snapshots = list(getattr(signal, "closed_1h", ()))
         record = {
