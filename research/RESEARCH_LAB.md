@@ -83,3 +83,8 @@ HFT market making, latency arbitrage and options volatility arbitrage are not va
 5. Implement independent strategy families in small reviewed batches.
 6. Add chronological OOS and walk-forward evaluation, then multiple-testing controls.
 7. Promote only strategies that pass OOS and paper-trading gates to signal-only Telegram integration.
+
+
+## Separate spot-only strategy autopilot
+
+The Binance Spot pipeline is documented separately in [SPOT_AUTOPILOT.md](SPOT_AUTOPILOT.md). It preserves the original Bitget perpetual scanner and five-engine research path. The supplied 12-family strategy library is preserved at [supplied_spot_strategy_library.py](supplied_spot_strategy_library.py), with spot-safe adapters in the repository root at [spot_strategy_engines.py](../spot_strategy_engines.py). Do not combine Binance Spot fills with Bitget perpetual performance. Bearish cues map to EXIT_TO_USDT; funding/basis are feature-only; missing OI/CVD/funding/basis history remains DATA INSUFFICIENT. The scheduled spot workflow does research and signal-file generation only, never exchange orders.
