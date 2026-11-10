@@ -160,9 +160,10 @@ def evaluate_strategy(frame, strategy_id, variant="A"):
         raw = legacy.crypto_c1_stablecoin_lockout_a(df)
     elif strategy_id == "funding_meanrev_chop":
         raw = legacy.crypto_c2_funding_meanrev_a(df.funding_rate)
+        chop = legacy._chop(df, 14)
         return _overlay(df, strategy_id, {
             "funding_z": raw.funding_z, "would_short_perp": raw.would_short_perp,
-            "size_mult": raw.size_mult,
+            "size_mult": raw.size_mult, "chop": chop, "chop_regime": chop > 62,
             "overlay_signal": np.where(raw.would_short_perp, "PERP_SHORT_BIAS", "NEUTRAL"),
         }, variant)
     elif strategy_id == "compression_breakout":
