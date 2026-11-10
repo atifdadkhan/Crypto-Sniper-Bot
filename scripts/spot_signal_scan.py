@@ -124,6 +124,33 @@ def generate(data_dir="data", output_dir="signal_results",
             item["english_message"] = format_signal(item)
             item["signal_id"] = journal.record(item, frame)
         paper_records = journal.export(output/"spot_trade_journal.csv")
+        # Per-coin, per-strategy, per-regime outcome statistics for later research.
+        closed = pd.DataFrame([r for r in paper_records
+                               if r["action"] == "BUY" and r["status"] == "CLOSED"])
+        if closed.empty:
+            pd.DataFrame(columns=[
+                "symbol","timeframe","strategy","market_condition","closed_trades",
+                "wins","losses","win_rate_pct","mean_net_paper_pct",
+                "median_net_paper_pct","tp2_hits","research_status"
+            ]).to_csv(output/"spot_signal_outcome_review.csv",index=False)
+        else:
+            closed["winning"] = closed.outcome.eq("WIN").astype(int)
+            closed["losing"] = closed.outcome.eq("LOSS").astype(int)
+            closed["net_return_pct"] = pd.to_numeric(closed.net_return_pct)
+            grouped = closed.groupby(["symbol","timeframe","strategy",
+                                      "market_condition"],dropna=False)
+            review = grouped.agg(
+                closed_trades=("signal_id","count"),
+                wins=("winning","sum"), losses=("losing","sum"),
+                mean_net_paper_pct=("net_return_pct","mean"),
+                median_net_paper_pct=("net_return_pct","median"),
+                tp2_hits=("tp2_hit","sum")
+            ).reset_index()
+            review["win_rate_pct"] = (review.wins/review.closed_trades*100).round(2)
+            review["research_status"] = review.closed_trades.apply(
+                lambda n: "INSUFFICIENT_SAMPLE" if n < 30
+                          else "RESEARCH_ONLY_NEEDS_FORWARD_VALIDATION")
+            review.to_csv(output/"spot_signal_outcome_review.csv",index=False)
     finally:
         journal.close()
     messages = [item["english_message"] for item in signals if "english_message" in item]
