@@ -1,7 +1,7 @@
-"""Resumable public Binance Spot and USDⓈ-M perpetual OHLCV research downloader.
+"""Public Binance Spot and USDⓈ-M perpetual OHLCV research downloader.
 
 No API keys, private endpoints, or orders. Each invocation handles one market type
-and one deterministic symbol batch; incomplete symbols are never marked eligible.
+and one deterministic symbol batch; per-timeframe coverage is recorded independently.
 """
 import argparse
 import json
@@ -147,6 +147,7 @@ def main():
                     "data_policy": "provider OHLCV only; no synthetic candles; gaps split backtests"}
         for symbol in symbols:
             result = {"symbol": symbol, "timeframes": {}}
+            staging = None
             try:
                 market = ex.market(symbol)
                 base = str(market.get("base") or symbol.split("/")[0]).upper()
@@ -187,7 +188,7 @@ def main():
                 manifest["downloaded"].append(result)
                 print(f"{result['status']} {symbol}: {successful_timeframes}")
             except Exception as exc:
-                if staging.exists():
+                if staging is not None and staging.exists():
                     import shutil
                     shutil.rmtree(staging, ignore_errors=True)
                 manifest["failed"].append({"symbol": symbol, "error": f"{type(exc).__name__}: {exc}"})
