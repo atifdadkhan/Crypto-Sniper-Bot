@@ -129,6 +129,9 @@ def _timeframe_results(symbol, timeframe, frame, fee, minimum_trades,
                 lock_bars += int(lock.sum())
                 total_bars += len(lock)
                 continue
+            if spec["type"] == "exit_only":
+                overlay_events += int(signals.exit_long.fillna(False).sum())
+                continue
             split = max(1, min(len(segment)-1, int(len(segment)*0.60)))
             train = simulate_spot(symbol, timeframe, segment, signals, strategy_id, fee,
                                   stop_atr, target_r, max_hold_hours, 0, split, "IN_SAMPLE")
@@ -157,6 +160,12 @@ def _timeframe_results(symbol, timeframe, frame, fee, minimum_trades,
                         "lockout_pct": round(100*lock_bars/total_bars, 2) if total_bars else None})
             output[strategy_id] = {
                 "status": "FILTER ONLY — NO STANDALONE TRADES", "strategy_type": "filter",
+                "segments_tested": tested, "in_sample": ins, "out_of_sample": oos,
+            }
+        elif spec["type"] == "exit_only":
+            oos["exit_events"] = overlay_events
+            output[strategy_id] = {
+                "status": "EXIT-ONLY SIGNAL — NO SHORT BACKTEST", "strategy_type": "exit_only",
                 "segments_tested": tested, "in_sample": ins, "out_of_sample": oos,
             }
         else:
