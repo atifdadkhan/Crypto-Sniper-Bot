@@ -32,8 +32,10 @@ def discover(exchange, kind, min_quote_volume):
     markets = exchange.load_markets()
     try:
         tickers = exchange.fetch_tickers()
-    except Exception:
-        tickers = {}
+    except Exception as exc:
+        raise RuntimeError("MARKET DISCOVERY INCOMPLETE: ticker snapshot unavailable") from exc
+    if not tickers:
+        raise RuntimeError("MARKET DISCOVERY INCOMPLETE: empty ticker snapshot")
     selected = []
     for symbol, market in markets.items():
         if not market.get("active", True) or market.get("quote") != "USDT":
