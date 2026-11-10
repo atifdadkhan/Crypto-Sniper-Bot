@@ -112,6 +112,7 @@ class Tape:
 
     def set_book(self, book, now=None):
         now = time.monotonic() if now is None else now
+        self.book = None
         try:
             bid = [(float(p), float(q)) for p, q in book["bids"][:5]]
             ask = [(float(p), float(q)) for p, q in book["asks"][:5]]
