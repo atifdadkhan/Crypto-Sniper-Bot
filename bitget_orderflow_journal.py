@@ -71,7 +71,8 @@ def english_alert(signal, fmt):
     side = plan["side"]
     coin = str(signal.symbol).split("/")[0].split(":")[0]
     is_buy = side == "LONG"
-    direction = "🟢 <b>BUY / LONG</b>" if is_buy else "🔴 <b>SELL / SHORT</b>"
+    direction = "BUY / LONG" if is_buy else "SELL / SHORT"
+    direction_icon = "🟢" if is_buy else "🔴"
     if plan["condition"] == "STRONG":
         market_line = (
             "📈 <b>Market: Strong upward move supports this BUY</b>"
@@ -82,8 +83,8 @@ def english_alert(signal, fmt):
         market_line = "🟡 <b>Market: Not strong enough for extended targets</b>"
 
     lines = [
-        "🚨 <b>BITGET FUTURES SIGNAL</b>",
-        f"<b>{escape(coin)}</b>  ·  <b>{direction}</b>",
+        "🚨 <b>BITGET SIGNAL · FUTURES</b>",
+        f"<b>{escape(coin)}</b>  ·  <b>{direction_icon} {direction}</b>",
         "━━━━━━━━━━━━━━━━━━",
         f"🧠 <b>Strategy:</b> {escape(str(signal.strategy_name))}",
         market_line,
