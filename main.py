@@ -203,6 +203,7 @@ def _readiness():
             detail["candle_scan_age_seconds"] = age
             detail["candle_scan_error"] = state.get("last_error")
             detail["candle_scan"] = last_scan_result
+            detail["orderflow_fresh"] = fresh
             detail["central_strategies"] = live_registry(
                 state["orderflow_mode"], True, settings.rs_engine_enabled
             )
@@ -213,10 +214,21 @@ def _readiness():
     except (ValueError, TypeError):
         seconds = None
     is_fresh = seconds is not None and 0 <= seconds < max(settings.scan_seconds * 2, 1800)
-    return {"scanner_fresh": is_fresh, "last_scan_age_seconds": seconds,
-            "pending_alerts": len(outbox.items),
-            "last_error": state.get("last_error"),
-            "last_scan": state.get("last_scan"), "scan": last_scan_result}
+    detail = {"scanner_fresh": is_fresh, "last_scan_age_seconds": seconds,
+              "pending_alerts": len(outbox.items),
+              "last_error": state.get("last_error"),
+              "last_scan": state.get("last_scan"), "scan": last_scan_result}
+    if UNIFIED_LIVE:
+        t, b = orderflow_status.get("last_trade_at"), orderflow_status.get("last_book_at")
+        flow_fresh = bool(t and b and time.time() - t < 30 and time.time() - b < 30)
+        detail["orderflow_fresh"] = flow_fresh
+        detail["orderflow"] = dict(orderflow_status)
+        detail["candle_scanner_fresh"] = is_fresh
+        detail["candle_scan_error"] = state.get("last_error")
+        detail["central_strategies"] = live_registry(
+            state["orderflow_mode"], True, settings.rs_engine_enabled
+        )
+    return detail
 
 
 @health_app.get("/")
@@ -231,6 +243,12 @@ def health():
 def ready():
     detail = _readiness()
     ready_now = bool(detail["scanner_fresh"] and detail["last_error"] is None)
+    if UNIFIED_LIVE:
+        ready_now = bool(
+            ready_now and detail.get("orderflow_fresh")
+            and detail.get("candle_scanner_fresh")
+            and detail.get("candle_scan_error") is None
+        )
     return jsonify(status="ready" if ready_now else "degraded", **detail), (200 if ready_now else 503)
 
 
