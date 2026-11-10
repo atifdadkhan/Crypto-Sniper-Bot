@@ -44,7 +44,10 @@ def aggregate(input_dir, output_dir, minimum_oos_trades=30):
                 seen.add(symbol); keep.add(symbol); combined.append((symbol,part[symbol]))
         trade_path=summary_path.parent/"spot_strategy_oos_trades.csv"
         if trade_path.is_file():
-            trades=pd.read_csv(trade_path)
+            try:
+                trades=pd.read_csv(trade_path)
+            except pd.errors.EmptyDataError:
+                trades=pd.DataFrame()
             if not trades.empty and "symbol" in trades:
                 trades=trades[trades.symbol.astype(str).isin(keep)]
                 if not trades.empty: trade_parts.append(trades)
