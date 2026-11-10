@@ -127,7 +127,7 @@ SETTINGS_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("🎯 Signal Style", callback_data="menu:strategy"),
      InlineKeyboardButton("⬅️ Back to Menu", callback_data="menu:home")]
 ])
-CENTRAL_ORDERFLOW_STRATEGY_MENU = InlineKeyboardMarkup([
+CENTRAL_STRATEGY_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("⭐ Both Orderflow Engines", callback_data="ofmode:both")],
     [InlineKeyboardButton("📉 CVD Divergence", callback_data="ofmode:cvd"),
      InlineKeyboardButton("💧 Wick Hunt", callback_data="ofmode:wick")],
@@ -137,7 +137,7 @@ CENTRAL_ORDERFLOW_STRATEGY_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("🛡️ 15m Extra Check", callback_data="mode:rsi_macd")],
     [InlineKeyboardButton("⬅️ Back to Menu", callback_data="menu:home")],
 ])
-STRATEGY_MENU = InlineKeyboardMarkup([
+ORDERFLOW_STRATEGY_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("⭐ Both Orderflow Engines", callback_data="ofmode:both")],
     [InlineKeyboardButton("📉 CVD Divergence", callback_data="ofmode:cvd")],
     [InlineKeyboardButton("💧 Liquidity Wick Hunt", callback_data="ofmode:wick")],
