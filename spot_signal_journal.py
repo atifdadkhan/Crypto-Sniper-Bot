@@ -279,6 +279,9 @@ class SignalJournal:
                         and ts > s["exit_requested_after_utc"]):
                     self._finish(sid, s, ts, op, "STRATEGY_EXIT", candle)
                     continue
+                if s.get("close_at_next_open"):
+                    self._finish(sid, s, ts, op, s.pop("close_at_next_open"), candle)
+                    continue
                 # The previously established stop applies before new targets/trailing levels.
                 stop = max(p["stop_loss"], s["trail_stop"] or 0)
                 if op <= stop or lo <= stop:
@@ -295,8 +298,7 @@ class SignalJournal:
                 # Conditions can weaken after the signal; no look-ahead candles used.
                 still_strong = market_condition(bars.iloc[:i+1]) == "STRONG"
                 if s["tp1_hit"] and not s["tp2_hit"] and not still_strong:
-                    self._finish(sid, s, ts, float(bar.close),
-                                 "MARKET_WEAKENED_AFTER_TP1", candle)
+                    s["close_at_next_open"] = "MARKET_WEAKENED_AFTER_TP1"
                     continue
                 if p["tp2"] is not None and s["tp1_hit"] and not s["tp2_hit"] and hi >= p["tp2"]:
                     s["tp2_hit"] = True
@@ -306,8 +308,7 @@ class SignalJournal:
                     s["trail_stop"], s["peak_price"] = p["tp1"], hi
                 elif s["moonshot_active"]:
                     if not still_strong:
-                        self._finish(sid, s, ts, float(bar.close),
-                                     "MOONSHOT_MOMENTUM_FADED", candle)
+                        s["close_at_next_open"] = "MOONSHOT_MOMENTUM_FADED"
                         continue
                     s["peak_price"] = max(s["peak_price"], hi)
                     current_atr = float(atr.iloc[i])
@@ -316,7 +317,7 @@ class SignalJournal:
                                               s["peak_price"]-1.5*current_atr)
                 started = pd.to_datetime(s["entry_time_utc"], utc=True)
                 if (pd.to_datetime(ts, utc=True)-started).total_seconds() >= 86400:
-                    self._finish(sid, s, ts, float(bar.close), "MAX_24H_HOLD", candle)
+                    s["close_at_next_open"] = "MAX_24H_HOLD"
             self.conn.execute(
                 "UPDATE signals SET status=?,state_json=?,updated_utc=? WHERE signal_id=?",
                 (s["status"], json.dumps(s, allow_nan=False),
