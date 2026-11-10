@@ -127,7 +127,7 @@ SETTINGS_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("🎯 Signal Style", callback_data="menu:strategy"),
      InlineKeyboardButton("⬅️ Back to Menu", callback_data="menu:home")]
 ])
-ORDERFLOW_CENTRAL_STRATEGY_MENU = InlineKeyboardMarkup([
+CENTRAL_ORDERFLOW_STRATEGY_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("⭐ Both Orderflow Engines", callback_data="ofmode:both")],
     [InlineKeyboardButton("📉 CVD Divergence", callback_data="ofmode:cvd"),
      InlineKeyboardButton("💧 Wick Hunt", callback_data="ofmode:wick")],
@@ -719,7 +719,7 @@ async def _scan_one(symbol, sem, btc, eth, core_enabled=True, four_hour_enabled=
                     eth_return_6_pct=eth["return_6_pct"],
                     strategy_mode=state.get("strategy_mode", "recommended"),
                 )
-                if candidate is not None and UNIFIED_LIVE:
+                if candidate is not None and UNIFIED_LIVE and hasattr(candidate, "to_dict"):
                     attach_hour_context(candidate, candles.get("1h"))
                 if track_opportunities:
                     evidence = [
@@ -776,7 +776,7 @@ async def _scan_one(symbol, sem, btc, eth, core_enabled=True, four_hour_enabled=
                 try:
                     # A slow 4H history fetch cannot discard a valid 15m signal.
                     rs = await asyncio.wait_for(rs_attempt(), timeout=75)
-                    if rs is not None and UNIFIED_LIVE:
+                    if rs is not None and UNIFIED_LIVE and hasattr(rs, "to_dict"):
                         hourly = candles.get("1h") if candles is not None else None
                         if hourly is None:
                             try:
