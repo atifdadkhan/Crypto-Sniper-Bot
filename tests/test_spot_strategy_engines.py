@@ -109,7 +109,7 @@ def test_spot_backtest_enters_next_open_and_deducts_costs():
 
 
 def test_spot_backtest_uses_stop_first_for_ambiguous_candle():
-    n=10
+    n=30
     bars=pd.DataFrame({"timestamp":pd.date_range("2026-01-01",periods=n,freq="15min",tz="UTC"),
         "open":[100.0]*n,"high":[101.0]*n,"low":[99.0]*n,"close":[100.0]*n})
     bars.loc[16,["high","low"]]=[110.0,90.0]
