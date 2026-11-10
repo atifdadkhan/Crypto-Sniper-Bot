@@ -99,12 +99,12 @@ def test_spot_backtest_enters_next_open_and_deducts_costs():
     op=np.r_[close[0],close[:-1]]
     bars=pd.DataFrame({"timestamp":pd.date_range("2026-01-01",periods=n,freq="15min",tz="UTC"),
         "open":op,"high":np.maximum(op,close)+1,"low":np.minimum(op,close)-1,"close":close})
-    signals=pd.DataFrame({"entry_long":[False]*5+[True]+[False]*(n-6),
+    signals=pd.DataFrame({"entry_long":[False]*15+[True]+[False]*(n-16),
         "exit_long":[False]*n})
     trades=simulate_spot("TESTUSDT","15m",bars,signals,"grid",0.12)
     assert len(trades)==1
     assert trades.iloc[0].side=="BUY"
-    assert trades.iloc[0].entry_price==pytest.approx(op[6])
+    assert trades.iloc[0].entry_price==pytest.approx(op[16])
     assert trades.iloc[0].cost_r>0
 
 
@@ -112,8 +112,8 @@ def test_spot_backtest_uses_stop_first_for_ambiguous_candle():
     n=10
     bars=pd.DataFrame({"timestamp":pd.date_range("2026-01-01",periods=n,freq="15min",tz="UTC"),
         "open":[100.0]*n,"high":[101.0]*n,"low":[99.0]*n,"close":[100.0]*n})
-    bars.loc[2,["high","low"]]=[104.0,97.0]
-    signals=pd.DataFrame({"entry_long":[False,True]+[False]*(n-2),"exit_long":[False]*n})
+    bars.loc[16,["high","low"]]=[110.0,90.0]
+    signals=pd.DataFrame({"entry_long":[False]*15+[True]+[False]*(n-16),"exit_long":[False]*n})
     trades=simulate_spot("TESTUSDT","15m",bars,signals,"grid",0.0)
     assert len(trades)==1
     assert trades.iloc[0].exit_reason=="STOP_FIRST"
