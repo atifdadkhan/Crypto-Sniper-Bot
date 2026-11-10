@@ -71,7 +71,7 @@ def english_alert(signal, fmt):
     side = plan["side"]
     coin = str(signal.symbol).split("/")[0].split(":")[0]
     is_buy = side == "LONG"
-    direction = "BUY / LONG" if is_buy else "SELL / SHORT"
+    direction = "🟢 <b>BUY / LONG</b>" if is_buy else "🔴 <b>SELL / SHORT</b>"
     if plan["condition"] == "STRONG":
         market_line = (
             "📈 <b>Market: Strong upward move supports this BUY</b>"
@@ -82,7 +82,7 @@ def english_alert(signal, fmt):
         market_line = "🟡 <b>Market: Not strong enough for extended targets</b>"
 
     lines = [
-        "🚨 <b>BITGET SIGNAL</b>",
+        "🚨 <b>BITGET FUTURES SIGNAL</b>",
         f"<b>{escape(coin)}</b>  ·  <b>{direction}</b>",
         "━━━━━━━━━━━━━━━━━━",
         f"🧠 <b>Strategy:</b> {escape(str(signal.strategy_name))}",
@@ -109,7 +109,7 @@ def english_alert(signal, fmt):
         f"🛑 <b>Stop Loss:</b> <code>{f(plan['stop_loss'])}</code> USDT",
         "━━━━━━━━━━━━━━━━━━",
         "📒 <i>Every delivered signal is recorded and tracked against closed Bitget candles. "
-        "Results are paper estimates, not actual fills or account P&amp;L. No automatic orders.</i>",
+        "Results are paper estimates, not actual fills or account P&amp;L. No auto orders.</i>",
     ])
     return "\n".join(lines)
 
