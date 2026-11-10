@@ -54,12 +54,13 @@ def discover(exchange, kind, min_quote_volume):
     return selected
 
 
-def fetch_history(exchange, symbol, timeframe, days):
+def fetch_history(exchange, symbol, timeframe, days, min_history_days=7):
+    """Fetch closed candles; accept shorter listings only above a declared floor."""
     step_ms = int(exchange.parse_timeframe(timeframe) * 1000)
     now_ms = exchange.milliseconds()
     end_ms = (now_ms // step_ms) * step_ms
-    since = end_ms - days * DAY_MS
-    cursor = since - (since % step_ms)
+    requested_start = end_ms - days * DAY_MS
+    cursor = requested_start - (requested_start % step_ms)
     rows = {}
     while cursor < end_ms:
         page = exchange.fetch_ohlcv(symbol, timeframe=timeframe, since=cursor, limit=LIMIT)
@@ -71,8 +72,7 @@ def fetch_history(exchange, symbol, timeframe, days):
             if cursor <= stamp < end_ms:
                 rows[stamp] = row[:6]
                 advanced = True
-        last = int(page[-1][0])
-        next_cursor = last + step_ms
+        next_cursor = int(page[-1][0]) + step_ms
         if next_cursor <= cursor or not advanced:
             break
         cursor = next_cursor
@@ -85,13 +85,19 @@ def fetch_history(exchange, symbol, timeframe, days):
     frame = frame[frame["timestamp"] + pd.to_timedelta(step_ms, unit="ms")
                   <= pd.Timestamp(end_ms, unit="ms", tz="UTC")]
     frame = frame.drop_duplicates("timestamp").sort_values("timestamp").reset_index(drop=True)
-    expected_start = pd.Timestamp(cursor if False else since - (since % step_ms), unit="ms", tz="UTC")
-    if frame.empty or frame.timestamp.iloc[0] > expected_start + pd.to_timedelta(step_ms, unit="ms"):
-        raise RuntimeError(f"DATA INSUFFICIENT: requested {days}d coverage not reached")
+    if frame.empty:
+        raise RuntimeError("DATA INSUFFICIENT: no completed candles")
+    actual_days = (end_ms - int(frame.timestamp.iloc[0].timestamp() * 1000)) / DAY_MS
+    if actual_days < min_history_days:
+        raise RuntimeError(
+            f"DATA INSUFFICIENT: only {actual_days:.1f}d history; "
+            f"minimum is {min_history_days}d"
+        )
     age = pd.Timestamp(end_ms, unit="ms", tz="UTC") - (
         frame.timestamp.iloc[-1] + pd.to_timedelta(step_ms, unit="ms"))
     if age > pd.to_timedelta(step_ms * 2, unit="ms"):
         raise RuntimeError("DATA INSUFFICIENT: latest candle is stale")
+    frame.attrs["actual_history_days"] = round(float(actual_days), 2)
     return frame
 
 
@@ -103,6 +109,7 @@ def main():
     p.add_argument("--batch-size", type=int, default=10)
     p.add_argument("--min-quote-volume", type=float, default=1_000_000)
     p.add_argument("--days", type=int, default=365)
+    p.add_argument("--min-history-days", type=int, default=7)
     p.add_argument("--out", default="data")
     p.add_argument("--batch-id", default="batch")
     a = p.parse_args()
@@ -110,6 +117,8 @@ def main():
         p.error("--days must be between 120 and 2000")
     if a.batch_size < 1 or a.min_quote_volume < 0:
         p.error("batch-size must be positive and volume floor non-negative")
+    if not 1 <= a.min_history_days <= a.days:
+        p.error("--min-history-days must be between 1 and --days")
     ex = exchange_for(a.market_type)
     try:
         ex.load_markets()
@@ -126,7 +135,8 @@ def main():
         root = Path(a.out)
         root.mkdir(parents=True, exist_ok=True)
         manifest = {"exchange": "Binance", "market_type": a.market_type,
-                    "days_requested": a.days, "timeframes": list(TIMEFRAMES),
+                    "days_requested": a.days, "min_history_days": a.min_history_days,
+                    "timeframes": list(TIMEFRAMES),
                     "symbols_requested": symbols, "downloaded": [], "failed": [],
                     "data_policy": "provider OHLCV only; no synthetic candles; gaps split backtests"}
         for symbol in symbols:
@@ -141,14 +151,15 @@ def main():
                     shutil.rmtree(staging)
                 staging.mkdir(parents=True)
                 for tf in TIMEFRAMES:
-                    frame = fetch_history(ex, symbol, tf, a.days)
+                    frame = fetch_history(ex, symbol, tf, a.days, a.min_history_days)
                     frame.to_csv(staging / f"{tf}.csv", index=False)
                     delta = pd.DatetimeIndex(frame.timestamp).asi8
                     step = int(ex.parse_timeframe(tf) * 1_000_000_000)
                     gaps = int((delta[1:] - delta[:-1] != step).sum())
                     result["timeframes"][tf] = {"candles": len(frame), "gap_count": gaps,
                         "first_timestamp": str(frame.timestamp.iloc[0]),
-                        "last_timestamp": str(frame.timestamp.iloc[-1])}
+                        "last_timestamp": str(frame.timestamp.iloc[-1]),
+                        "actual_history_days": frame.attrs.get("actual_history_days")}
                 if folder.exists():
                     import shutil
                     shutil.rmtree(folder)
