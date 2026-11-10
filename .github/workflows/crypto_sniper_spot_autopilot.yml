@@ -149,7 +149,7 @@ jobs:
 
   aggregate:
     needs: [discover, spot_batches]
-    if: ${{ always() && needs.spot_batches.result != 'cancelled' }}
+    if: ${{ always() && needs.discover.result == 'success' && needs.spot_batches.result != 'cancelled' && needs.spot_batches.result != 'skipped' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
